@@ -2,7 +2,7 @@
 use std::collections::HashMap;
 use std::string::ToString;
 use std::path::PathBuf;
-use std::fs::File;
+use std::fs;
 use std::fmt::{self, Display};
 
 use crate::cli;
@@ -30,7 +30,7 @@ impl<'a>  Display for Error<'a>  {
 
 struct Wad {
   path: PathBuf,
-  file: File,
+  data: Vec<u8>,
 
 }
 pub struct Reader {
@@ -50,7 +50,7 @@ impl Reader {
                     name,
                     Wad {
                         path: path.clone(),
-                        file: File::open("your_file").or_else(|err| Err(Errors::from(Error::FileRead(err.to_string()))))?,
+                        data: fs::read(path).or_else(|err| Err(Errors::from(Error::FileRead(err.to_string()))))?,
                     }
                 );
                 Ok::<Wads, Errors>(wads)
