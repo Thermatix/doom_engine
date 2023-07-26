@@ -1,12 +1,17 @@
 
-#[derive(Debug)]
-struct Test {
-    pub name: String,
-}
 
-fn main() {
-    let test = Test { name: "Martin".to_string() };
-    let me = &test.name;
-    println!("Hello {me}!");
+mod cli;
+mod errors;
+
+mod wad;
+mod engine;
+
+
+
+fn main() -> errors::CliResult<'static> {
+    let args = cli::args();
+    let wads = wad::Reader::new(&args);
+    let doom = engine::Engine::new(&args);
+    Ok(())
 }
 
