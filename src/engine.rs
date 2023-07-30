@@ -1,9 +1,18 @@
+#![allow(unused_imports)]
 use std::fmt::{self, Display};
 
 use crate::cli;
 use crate::errors::{CliResult,Errors};
 
 use crate::wad;
+
+use binrw::{
+    binrw,    // #[binrw] attribute
+    BinRead,  // trait for reading
+    BinWrite, // trait for writing
+    BinReaderExt, 
+    io::Cursor,
+};
 
 #[derive(Debug)]
 pub enum Error<'a> {
@@ -19,17 +28,16 @@ impl<'a>  Display for Error<'a>  {
 }
 
 
-
+#[derive(Debug)]
 pub struct Engine {
-    
-    wads: wad::Reader,
+    pub reader: wad::Reader,
 }
 
 impl Engine {
     pub fn new(args: &cli::Args) -> CliResult<Self> {
-        let wads = wad::Reader::new(args)?;
+        let reader = wad::Reader::new(args)?;
         Ok(Self {
-            wads
+            reader
         })
 
     }
