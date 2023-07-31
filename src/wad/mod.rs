@@ -129,19 +129,7 @@ impl Reader {
         let wad_lumps = &self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?.data.lumps;
         let (i, _) = wad_lumps.iter().enumerate().find(|(_, lump)| lump.name.starts_with(map_name))
         .ok_or_else(|| Error::Reader(format!("'{map_name}' not found")))?;
-        Ok(Map {
-            name: &wad_lumps[i].name,
-            things: &wad_lumps[i + 1],
-            line_defs: &wad_lumps[i + 2],
-            side_defs: &wad_lumps[i + 3],
-            vertexs: &wad_lumps[i + 4],
-            segments: &wad_lumps[i + 5],
-            sub_sectors: &wad_lumps[i + 6],
-            nodes: &wad_lumps[i + 7],
-            sectors: &wad_lumps[i + 8],
-            reject: &wad_lumps[i + 9],
-            block_map: &wad_lumps[i + 10],
-        })
+        Ok(Map::new(&wad_lumps,i))
     }
 
 }

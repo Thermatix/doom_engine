@@ -6,14 +6,21 @@ mod wad;
 mod engine;
 
 use std::collections::HashMap;
-const DOOMMAPLUMPLENGTH: usize = 11;
 
-use sdl2::VideoSubsystem;
-use sdl2::render::Canvas;
-use sdl2::video::Window;
-use sdl2::pixels::Color;
-use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
+use std::time::Duration;
+
+
+
+use sdl2::{
+    VideoSubsystem,
+    render::Canvas,
+    video::Window,
+    pixels::Color,
+    event::Event,
+    keyboard::Keycode,
+};
+
+use wad::LumpData;
 
 
 fn main() -> errors::CliResult<'static> {
@@ -21,12 +28,15 @@ fn main() -> errors::CliResult<'static> {
     let engine = engine::Engine::new(&args)?;
     let lumps = engine.reader.lumps_for("DOOM2")?;
 
-    let map_data = engine.reader.get_map_lumps("DOOM2", "MAP01")?;
+    //let map_data = engine.reader.get_map_lumps("DOOM2", "MAP01")?;
+    let map_data = engine.reader.get_map_lumps("DOOM2", &args.map_name)?;
 
-    //println!("{:?}", map_data.line_defs);
+    let width = 800;
+    let height = 600;
+
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
-    let window = video_subsystem.window("Example", 1920, 1080).build().unwrap();
+    let window = video_subsystem.window("Map Display", width, height).build().unwrap();
     let mut canvas : Canvas<Window> = window.into_canvas()
     .present_vsync() //< this means the screen cannot
     // render faster than your display rate (usually 60Hz or 144Hz)
@@ -34,26 +44,13 @@ fn main() -> errors::CliResult<'static> {
 
     canvas.set_draw_color(Color::RGB(0, 0, 0));
     canvas.clear();
-    canvas.set_draw_color(Color::RGB(255, 210, 0));
 
-    if let wad::LumpData::DeserializeLump(line_Defs) = &map_data.line_defs.data {
-        for line_def in line_Defs.iter() {
-            if let wad::DeserializeLump::LineDef { start, end, flags, special_type, tag, front, back } = &line_def { 
-                if let wad::LumpData::DeserializeLump(vertexes) = &map_data.vertexs.data {
-                  let p1 = 
-                    if let wad::DeserializeLump::Vertex { x, y }  =  &vertexes[*start as usize] {
-                        (*x as i32, *y as i32)
-                    } else { println!("LUMP: {:?}", &vertexes[*start as usize]);  panic!()};
-                  let p2 = 
-                    if let wad::DeserializeLump::Vertex { x, y }  =  &vertexes[*end as usize] {
-                        (*x as i32, *y as i32)
-                    } else { panic!()};
-                  canvas.draw_line(p1, p2).unwrap();
-                };
-            }
-        }
-    }
+    println!("BOUNDS: {:?}", map_data.map_bounds());
+    
+    let points = map_data.scale_map_points(width as i32, height as i32, 30);
+  
     let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut draw_map = true;
     'running: loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -64,7 +61,20 @@ fn main() -> errors::CliResult<'static> {
                 _ => {}
             }
         }
-        canvas.present();
+
+        if draw_map {
+            for (p1, p2) in map_data.line_defs_to_vertexes(Some(&points))  {
+                canvas.set_draw_color(Color::GREY);
+                canvas.draw_line(p1, p2).unwrap();
+                canvas.set_draw_color(Color::YELLOW);
+                canvas.draw_point(p1).unwrap();
+                canvas.draw_point(p2).unwrap();
+                canvas.present();   
+                ::std::thread::sleep(Duration::new(0, 1_000_000_000u32 / 60));
+            }
+            draw_map = false;
+        }
+        
     }
     
   
@@ -72,3 +82,7 @@ fn main() -> errors::CliResult<'static> {
 }
 
 
+// fn get_map_bounds(vertex_lumps: &LumpData) -> (i32, i32, i32 ,i32) {
+
+
+// }

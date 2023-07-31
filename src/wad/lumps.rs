@@ -30,27 +30,22 @@ pub struct Lump {
 
 }
 
-fn post_process_lump(name: &str, size: i32, lump_data: &LumpData) -> bool {
-    let lump_meta = lump_meta();
+impl Lump {
+    pub fn lump_data_bytes(&self) -> &Vec<u8>  {
+        match &self.data {
+            LumpData::Bytes(bytes) => bytes,
+            _ => panic!("called lump_bytes when data is deserialized or a marker: {}", self.data.name_to_string())
+        }
+    }
+    
 
-    if name.starts_with("SECTOR") {
-        lump_meta.insert("SECTOR_COUNT", lump_data.count());
-    } else if name.starts_with("REJECT") {
-        *lump_meta.get_mut("SECTOR_COUNT").unwrap() = 0;
+    pub fn lump_data_deserialized(&self) -> &Vec<DeserializeLump>  {
+        match &self.data {
+            LumpData::DeserializeLump(bytes) => bytes,
+            _ => panic!("called lump_deserialized when data is bytes or a marker: {}", self.data.name_to_string())
+        }
     }
 
-    true
-}
-
-fn reject_count() -> usize {
-    let lump_meta = lump_meta();
-    let sec_count = lump_meta.get("SECTOR_COUNT").unwrap();
-    (sec_count * sec_count) / 8
-
-}
-
-
-impl Lump  {
     fn lump_size(size: i32, name: &str) -> usize {
         if size == 0 { 0 } else {
             (size / if name.starts_with("THING") { 10 }
@@ -68,6 +63,26 @@ impl Lump  {
         }
 
     }
+}
+
+
+fn post_process_lump(name: &str, size: i32, lump_data: &LumpData) -> bool {
+    let lump_meta = lump_meta();
+
+    if name.starts_with("SECTOR") {
+        lump_meta.insert("SECTOR_COUNT", lump_data.count());
+    } else if name.starts_with("REJECT") {
+        *lump_meta.get_mut("SECTOR_COUNT").unwrap() = 0;
+    }
+
+    true
+}
+
+fn reject_count() -> usize {
+    let lump_meta = lump_meta();
+    let sec_count = lump_meta.get("SECTOR_COUNT").unwrap();
+    (sec_count * sec_count) / 8
+
 }
 
 
@@ -111,6 +126,18 @@ pub enum LumpData {
 }
 
 impl LumpData {
+    pub fn name_to_string(&self) -> String {
+        match self {
+            Self::DeserializeLump(_) => "DeserializedLump".to_string(),
+            Self::Bytes(_) => "Bytes".to_string(),
+            Self::Marker => "Marker".to_string(),
+        }
+
+    }
+
+}
+
+impl LumpData {
     pub fn count(&self) -> usize {
         match self {
             Self::DeserializeLump(data) => data.len(),
@@ -132,8 +159,8 @@ pub enum DeserializeLump {
     
     },
     #[br(pre_assert(name.starts_with("LINEDEF")))] LineDef {
-        start: i16,
-        end: i16,
+        start_vertex_id: i16,
+        end_vertex_id: i16,
         flags: LineDefFlags,
         special_type: i16,
         tag: i16,

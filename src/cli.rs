@@ -16,6 +16,8 @@ pub type Paths = Vec<PathBuf>;
 pub struct Args {
     /// wad data paths
     #[arg(value_delimiter = ',', value_name = "WAD")]
-    pub wad_paths: Vec<PathBuf>
+    pub wad_paths: Vec<PathBuf>,
+    #[arg(short, long,  value_name = "map_name")]
+    pub map_name: String,
 
 }
