@@ -1,13 +1,31 @@
-#![allow(unused_imports)]
+#[allow(unused_imports)]
 use super::*;
 
 use std::{sync::OnceLock, hash::Hash};
+use std::convert::TryFrom;
 
 use modular_bitfield::prelude::*;
 use binrw::{binrw, BinRead, args};
 
+pub type DeserializedLumps = Vec<DeserializeLump>;
+
+#[derive(Debug)]
+pub enum Error {
+    Unwraping(String, String),
+    Access(String),
+}
+
+impl  Display for Error  {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Unwraping(outer, inner) => write!(f, "couldn't unwrap'{outer}' to inner `{inner}`"),
+            Self::Access(message) => write!(f, "error accessing LumpData: `{message}`"),
+        }
+    }
+}
 
 pub static mut LUMPMETA: OnceLock<HashMap<&str, usize>> = OnceLock::new();
+
 
 pub fn lump_meta() -> &'static mut HashMap<&'static str, usize> {
     unsafe {
@@ -24,8 +42,10 @@ pub struct Lump {
     pub size: i32,
     #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
     pub name: String,
+    #[br(calc = Self::lump_count(size, &name))]
+    pub count: usize, 
     #[br(seek_before = SeekFrom::Start(offset as u64),  restore_position)]
-    #[br(args {count: Self::lump_size(size, &name), name: &name }, assert(post_process_lump(&name, size, &data)))]
+    #[br(args {count: count, name: &name }, assert(Self::post_process_lump(&name, &count, &data)))]
     pub data: LumpData,
 
 }
@@ -39,14 +59,14 @@ impl Lump {
     }
     
 
-    pub fn lump_data_deserialized(&self) -> &Vec<DeserializeLump>  {
+    pub fn lump_data_deserialized(&self) -> &DeserializedLumps  {
         match &self.data {
             LumpData::DeserializeLump(bytes) => bytes,
             _ => panic!("called lump_deserialized when data is bytes or a marker: {}", self.data.name_to_string())
         }
     }
 
-    fn lump_size(size: i32, name: &str) -> usize {
+    fn lump_count(size: i32, name: &str) -> usize {
         if size == 0 { 0 } else {
             (size / if name.starts_with("THING") { 10 }
             else if name.starts_with("LINEDEF") { 14 }
@@ -63,20 +83,21 @@ impl Lump {
         }
 
     }
-}
 
 
-fn post_process_lump(name: &str, size: i32, lump_data: &LumpData) -> bool {
-    let lump_meta = lump_meta();
+    fn post_process_lump(name: &String, count: &usize, lump_data: &LumpData) -> bool {
+        let lump_meta = lump_meta();
 
-    if name.starts_with("SECTOR") {
-        lump_meta.insert("SECTOR_COUNT", lump_data.count());
-    } else if name.starts_with("REJECT") {
-        *lump_meta.get_mut("SECTOR_COUNT").unwrap() = 0;
+        if name.starts_with("SECTOR") {
+            lump_meta.insert("SECTOR_COUNT", *count);
+        } else if name.starts_with("REJECT") {
+            lump_meta.insert("SECTOR_COUNT", 0);
+        }
+        true
     }
-
-    true
 }
+
+
 
 fn reject_count() -> usize {
     let lump_meta = lump_meta();
@@ -109,20 +130,45 @@ pub fn deserialiazable_lumps(name: &str) -> bool {
 }
 
 
-#[derive(Debug, BinRead, Clone, Default)]
+#[derive(Debug, BinRead, Clone, Default, PartialEq, Eq)]
 #[br(little, import { count: usize, name: &str } )]
 pub enum LumpData {
 
-    #[br(pre_assert(deserialiazable_lumps(&name)))] DeserializeLump (
+    #[br(pre_assert(Self::deserialiazable_lumps(&name)))] DeserializeLump (
         #[br(args { count: count, inner: args! { name }})]
-        Vec<DeserializeLump>
+        DeserializedLumps
     ),
     #[br(pre_assert(count > 0))] Bytes (
         #[br(args { count: count } )]
         Vec<u8>
     ),
+    #[br(pre_assert(!name.contains("_END") || !name.contains("_START")))] MapName,
     #[default] Marker
 
+}
+
+
+impl<'a> TryFrom<&'a LumpData> for &'a DeserializedLumps {
+    type Error = Error;
+
+    fn try_from(ld: &'a LumpData) -> Result<Self, Self::Error> {
+        match ld {
+            LumpData::DeserializeLump(d) => Ok(&d),
+            _ => Err(Self::Error::Unwraping("LumpData".to_string(), "DeserializeLump".to_string())),
+        }
+    }
+
+}
+
+impl<'a> TryFrom<&'a LumpData> for &'a Vec<u8> {
+    type Error = Error;
+
+    fn try_from(ld: &'a LumpData) -> Result<Self, Self::Error> {
+        match ld {
+            LumpData::Bytes(d) => Ok(&d),
+            _ => Err(Self::Error::Unwraping("LumpData".to_string(), "Bytes".to_string())),
+        }
+    }
 }
 
 impl LumpData {
@@ -131,23 +177,52 @@ impl LumpData {
             Self::DeserializeLump(_) => "DeserializedLump".to_string(),
             Self::Bytes(_) => "Bytes".to_string(),
             Self::Marker => "Marker".to_string(),
+            Self::MapName => "MapNname".to_string(),
         }
 
     }
 
-}
-
-impl LumpData {
     pub fn count(&self) -> usize {
         match self {
             Self::DeserializeLump(data) => data.len(),
             Self::Bytes(data) => data.len(),
-            Self::Marker => 0
+            Self::Marker => 0,
+            Self::MapName => 0,
         }
+    }
+
+
+
+    fn deserialiazable_lumps(name: &str) -> bool { 
+        let whitelist = [
+            "THING",
+            "LINEDEF",
+            "SIDEDEFS",
+            "VERTEX",
+            "SEG",
+            "SSECTOR",
+            "NODES",
+            "SECTOR",
+            "REJECT",
+            "BLOCKMAP",
+            "BMOFFSET"
+        ];
+        for prefix in whitelist.iter() {
+            if name.starts_with(prefix) {
+                return true;
+            }
+        }
+        false  
     }
 }
 
-#[derive(Debug, BinRead, Clone, Default)]
+// ERROR invalid utf-8 sequence of 1 bytes from index 4, length of: 1 for : [45, 0, 0, 0, 253, 4, 0, 0]
+
+fn bytes_to_string(mut bytes: Vec<u8>) -> String {
+    bytes.iter().map(|b| char::from(*b)).collect()
+}
+
+#[derive(Debug, BinRead, Clone, Default, PartialEq, Eq)]
 #[br(little, import { name: &str })]
 pub enum DeserializeLump {
     #[br(pre_assert(name.starts_with("THING")))] Thing {
@@ -171,11 +246,11 @@ pub enum DeserializeLump {
     #[br(pre_assert(name.starts_with("SIDEDEF")))] SideDef {
         x_offset: i16,
         y_offset: i16,
-        #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
+        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
         name_of_upper: String,
-        #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
+        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
         name_of_lower: String,
-        #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
+        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
         name_of_middle: String,
         sector_this_sidedef_faces: i16
     },
@@ -234,23 +309,8 @@ pub enum DeserializeLump {
 }
 
 
-// #[derive(Debug, Clone, BinRead)]
-// #[br(map = |&x| Self::into_bytes(x), little)]
-// pub struct RejectTable {
-//     #[br(count = reject_count(), map = |r: Vec<u8>| r.chunk(lump_meta().get("SECTOR_COUNT").unwrap()).collect()) ]
-//     table: Vec<Vec<bool>>,
-
-// }
-
-fn check_name(name: &str) -> bool {
-
-    println!("{name}");
-
-    true
-}
-
 #[bitfield]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[binrw]
 #[br(map = Self::from_bytes, little)]
 pub struct ThingFlags {
@@ -273,7 +333,7 @@ pub struct ThingFlags {
 }
 
 #[bitfield]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[binrw]
 #[br(map = Self::from_bytes, little)]
 pub struct LineDefFlags {

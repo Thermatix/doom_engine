@@ -5,8 +5,8 @@ mod structure;
 use crate::cli;
 use crate::errors::{CliResult,Errors};
 
-pub use structure::*;
-pub use lumps::*;
+pub use structure::{WadData, Map};
+pub use lumps::{Lump, DeserializedLumps, DeserializeLump, LumpData};
 
 use std::collections::HashMap;
 use std::string::ToString;
@@ -32,15 +32,16 @@ use binrw::{
 pub type Wads = HashMap<String, Wad>;
 
 #[derive(Debug)]
-pub enum Error<'a> {
-    FilePath(&'a PathBuf),
+pub enum Error {
+    FilePath(PathBuf),
     FileOpen(String),
     FileRead(String),
     Unpacking(UnpackError),
     Reader(String),
+    Lump(lumps::Error)
 }
 
-impl<'a>  Display for Error<'a>  {
+impl  Display for Error  {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::FilePath(path) => write!(f, "'{}' not found", path.display()),
@@ -48,12 +49,18 @@ impl<'a>  Display for Error<'a>  {
             Self::FileRead(message) => write!(f, "Could not Open wad:`{message}`"),
             Self::Unpacking(unpack_error) => write!(f, "{unpack_error}"),
             Self::Reader(message) => write!(f, "Wad Reader Error: `{message}`"),
-            
+            Self::Lump(lumps_error) => write!(f, "Lump processing error: `{lumps_error}`"),
         }
     }
 }
 
-impl<'a> From<UnpackError> for Error<'a> {
+impl From<lumps::Error> for Error {
+    fn from(lumps_error: lumps::Error) -> Self {
+        Self::Lump(lumps_error)
+    }
+}
+
+impl From<UnpackError> for Error {
     fn from(unpack_error: UnpackError) -> Self {
         Self::Unpacking(unpack_error)
     }
@@ -89,7 +96,7 @@ impl Reader {
         let wads: Wads = 
             args.wad_paths.iter().try_fold(Wads::new(), |mut wads, path| {
                 let name = path.file_stem()
-                                        .ok_or_else(|| Error::FilePath(path))?
+                                        .ok_or_else(|| Error::FilePath(path.clone()))?
                                         .to_str().unwrap()
                                         .to_string();
 
@@ -115,6 +122,13 @@ impl Reader {
 
     }
 
+    pub fn get_map_list<'a, 'b, 'c>(&'a self, wad_name: &'b str) -> CliResult<'c, Vec<&Lump>> {
+        let lumps = &self.wads.get(wad_name)
+            .ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?
+            .data.lumps;
+        Ok(lumps.iter().filter(|l| l.data == lumps::LumpData::MapName ).collect())
+    }
+
     pub fn lumps_for<'a, 'b, 'c>(&'a self, wad_name: &'b str) -> CliResult<'c, &Vec<Lump>> {
         Ok(&self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?.data.lumps)
     }
@@ -129,7 +143,7 @@ impl Reader {
         let wad_lumps = &self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?.data.lumps;
         let (i, _) = wad_lumps.iter().enumerate().find(|(_, lump)| lump.name.starts_with(map_name))
         .ok_or_else(|| Error::Reader(format!("'{map_name}' not found")))?;
-        Ok(Map::new(&wad_lumps,i))
+        Ok((wad_lumps,i).into())
     }
 
 }

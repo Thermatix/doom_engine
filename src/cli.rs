@@ -18,6 +18,8 @@ pub struct Args {
     #[arg(value_delimiter = ',', value_name = "WAD")]
     pub wad_paths: Vec<PathBuf>,
     #[arg(short, long,  value_name = "map_name")]
-    pub map_name: String,
+    pub map_name: Option<String>,
+    #[arg(short = 'l', long)]
+    pub list_maps: bool
 
 }

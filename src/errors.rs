@@ -6,16 +6,16 @@ use crate::cli;
 use crate::wad;
 use crate::engine;
 
-pub type CliResult<'a,Good=()> = Result<Good,Errors<'a>>;
+pub type CliResult<'a,Good=()> = Result<Good,Errors>;
 
 #[derive(Debug)]
-pub enum Errors<'a>{
-    Wad(wad::Error<'a>),
-    Engine(engine::Error<'a>)
+pub enum Errors{
+    Wad(wad::Error),
+    Engine(engine::Error)
 }
 
 
-impl<'a>  Display for Errors<'a>  {
+impl  Display for Errors  {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Wad(error) => write!(f,"Wad error: {error}"),
@@ -24,14 +24,14 @@ impl<'a>  Display for Errors<'a>  {
     }
 }
 
-impl<'a> From<wad::Error<'a>> for Errors<'a> {
-    fn from(error: wad::Error<'a>) -> Self {
+impl From<wad::Error> for Errors {
+    fn from(error: wad::Error) -> Self {
         Self::Wad(error)
     }
 }
 
-impl<'a> From<engine::Error<'a>> for Errors<'a> {
-    fn from(error: engine::Error<'a>) -> Self {
+impl From<engine::Error> for Errors {
+    fn from(error: engine::Error) -> Self {
         Self::Engine(error)
     }
 }

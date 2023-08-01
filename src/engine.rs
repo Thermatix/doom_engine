@@ -15,11 +15,11 @@ use binrw::{
 };
 
 #[derive(Debug)]
-pub enum Error<'a> {
-    NoErrors(&'a str)
+pub enum Error {
+    NoErrors(String)
 }
 
-impl<'a>  Display for Error<'a>  {
+impl  Display for Error  {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::NoErrors(_) => write!(f, "No Errors not found"),

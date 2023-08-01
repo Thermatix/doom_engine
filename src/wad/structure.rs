@@ -56,11 +56,17 @@ pub struct Map<'m> {
 }
 
 
-// TODO: Impl From<(Vec<Lump>, usize)>
+type Offset = usize;
+
+impl<'m> std::convert::From<(&'m Vec<Lump>, Offset)> for Map<'m> {
+    fn from((wad_lumps, offset): ((&'m Vec<Lump>, Offset))) -> Self {
+        Self::new(wad_lumps, offset)
+    }
+}
 
 impl<'m> Map<'m> {
 
-    pub fn new(wad_lumps: &'m Vec<Lump>, offset: usize) -> Self {
+    pub fn new(wad_lumps: &'m Vec<Lump>, offset: Offset) -> Self {
         Map {
             name: &wad_lumps[offset].name,
             things: &wad_lumps[offset + 1],
@@ -122,14 +128,17 @@ impl<'m> Map<'m> {
 
     }
 
-    pub fn line_defs_to_vertexes(&self, map_points: Option<&Points>) -> LineDefVertexes {
-        if let LumpData::DeserializeLump(line_defs) = &self.line_defs.data {
-            let map_points = if let Some(m) = map_points { m } else { self.map_points() };
-            line_defs.iter().map(|line_def| {
-                if let DeserializeLump::LineDef { start_vertex_id, end_vertex_id, flags, special_type, tag, front, back } = &line_def {
-                    (map_points[*start_vertex_id as usize], map_points[*end_vertex_id as usize])  
-                } else { panic!("line_defs are not LINEDEFS")}
-            }).collect()
-        } else { panic!("line_defs are not LINEDEFS")}
+    
+    pub fn line_defs_to_vertexes(&'m self, map_points: Option<&'m Points>) -> CliResult<Vec<(&'m (i32, i32), &'m (i32, i32))>> {
+        let line_defs: &DeserializedLumps = &self.line_defs.lump_data_deserialized();
+        let map_points = if let Some(m) = map_points { &m } else { self.map_points() };
+        let mut output: Vec<(&(i32, i32), &(i32, i32))> = Vec::new();
+
+        for line_def in line_defs.iter() {
+            if let DeserializeLump::LineDef { start_vertex_id, end_vertex_id, ..} = &line_def {
+                output.push((&map_points[*start_vertex_id as usize], &map_points[*end_vertex_id as usize]));
+            } else { return Err(Error::Lump(lumps::Error::Access("Tried to deserialize as Linedef, was not linedef, was: {line_Def:?}".to_string())).into()); }
+        }
+        Ok(output)
     }
 }
