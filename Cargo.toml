@@ -11,6 +11,7 @@ binread = "2.2.0"
 binrw = "0.11.2"
 clap = { version = "4.3.19", features = ["derive"] }
 modular-bitfield = "0.11.2"
+ordered-float = "3.7.0"
 packed_struct = { version = "0.10.1", features = ["use_serde"] }
-sdl2 = "0.35.2"
+sdl2 = { version = "0.35.2", features = ["gfx"] }
 serde = { version = "1.0.177", features = ["derive"] }

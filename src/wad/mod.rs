@@ -1,20 +1,41 @@
 #![allow(unused_imports)]
 mod lumps;
 mod structure;
+mod errors;
 
 use crate::cli;
-use crate::errors::{CliResult,Errors};
 
-pub use structure::{WadData, Map};
-pub use lumps::{Lump, DeserializedLumps, DeserializeLump, LumpData};
+
+pub use errors::*;
+pub use structure::*;
+pub use lumps::{
+    Lump, 
+    DeserializedLumps, 
+    DeserializeLump, 
+    LumpData, 
+    ThingFlags,
+    LineDefFlags,
+    Thing,
+    LineDef,
+    SideDef,
+    Vertex,
+    Segment,
+    SubSector,
+    Node,
+    Sector,
+    Reject,
+    BlockMap,
+};
 
 use std::collections::HashMap;
 use std::string::ToString;
 use std::path::PathBuf;
 use std::fs;
 use std::io::{self, prelude::*, SeekFrom};
-use std::fmt::{self, Display};
-use std::convert::From;
+
+use std::convert::From;    // for sd in map_data.side_defs.lump_data_deserialized().iter() {
+    //     println!("{sd:?}");
+    // }
 
 
 
@@ -30,55 +51,6 @@ use binrw::{
 
 
 pub type Wads = HashMap<String, Wad>;
-
-#[derive(Debug)]
-pub enum Error {
-    FilePath(PathBuf),
-    FileOpen(String),
-    FileRead(String),
-    Unpacking(UnpackError),
-    Reader(String),
-    Lump(lumps::Error)
-}
-
-impl  Display for Error  {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::FilePath(path) => write!(f, "'{}' not found", path.display()),
-            Self::FileOpen(message) => write!(f, "Could not Read wad:`{message}`"),
-            Self::FileRead(message) => write!(f, "Could not Open wad:`{message}`"),
-            Self::Unpacking(unpack_error) => write!(f, "{unpack_error}"),
-            Self::Reader(message) => write!(f, "Wad Reader Error: `{message}`"),
-            Self::Lump(lumps_error) => write!(f, "Lump processing error: `{lumps_error}`"),
-        }
-    }
-}
-
-impl From<lumps::Error> for Error {
-    fn from(lumps_error: lumps::Error) -> Self {
-        Self::Lump(lumps_error)
-    }
-}
-
-impl From<UnpackError> for Error {
-    fn from(unpack_error: UnpackError) -> Self {
-        Self::Unpacking(unpack_error)
-    }
-}
-
-#[derive(Debug)]
-pub enum UnpackError {
-    Headers(String),
-}
-
-impl  Display for UnpackError  {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Headers(reason) => write!(f, "Failed to unpack Headers: '{}'", reason.to_string()),
-        }
-    }
-}
-
 
 #[derive(Debug)]
 pub struct Wad {
@@ -139,7 +111,7 @@ impl Reader {
         Ok(())
     }
 
-    pub fn get_map_lumps<'a, 'b, 'c>(&'a self, wad_name: &'b str, map_name: &'b str) -> CliResult<'c, Map>  {
+    pub fn get_map<'a, 'b, 'c>(&'a self, wad_name: &'b str, map_name: &'b str) -> CliResult<'c, Map>  {
         let wad_lumps = &self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?.data.lumps;
         let (i, _) = wad_lumps.iter().enumerate().find(|(_, lump)| lump.name.starts_with(map_name))
         .ok_or_else(|| Error::Reader(format!("'{map_name}' not found")))?;

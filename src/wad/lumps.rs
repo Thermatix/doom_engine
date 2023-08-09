@@ -1,8 +1,10 @@
 #[allow(unused_imports)]
 use super::*;
 
+use std::ops::DerefMut;
 use std::{sync::OnceLock, hash::Hash};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, From};
+use std::fmt::{self, Display};
 
 use modular_bitfield::prelude::*;
 use binrw::{binrw, BinRead, args};
@@ -61,7 +63,7 @@ impl Lump {
 
     pub fn lump_data_deserialized(&self) -> &DeserializedLumps  {
         match &self.data {
-            LumpData::DeserializeLump(bytes) => bytes,
+            LumpData::DeserializeLump(data) => &data,
             _ => panic!("called lump_deserialized when data is bytes or a marker: {}", self.data.name_to_string())
         }
     }
@@ -107,27 +109,7 @@ fn reject_count() -> usize {
 }
 
 
-pub fn deserialiazable_lumps(name: &str) -> bool { 
-    let whitelist = [
-        "THING",
-        "LINEDEF",
-        "SIDEDEFS",
-        "VERTEX",
-        "SEG",
-        "SSECTOR",
-        "NODES",
-        "SECTOR",
-        "REJECT",
-        "BLOCKMAP",
-        "BMOFFSET"
-    ];
-    for prefix in whitelist.iter() {
-        if name.starts_with(prefix) {
-            return true;
-        }
-    }
-    false  
-}
+
 
 
 #[derive(Debug, BinRead, Clone, Default, PartialEq, Eq)]
@@ -146,6 +128,8 @@ pub enum LumpData {
     #[default] Marker
 
 }
+
+
 
 
 impl<'a> TryFrom<&'a LumpData> for &'a DeserializedLumps {
@@ -218,94 +202,136 @@ impl LumpData {
 
 // ERROR invalid utf-8 sequence of 1 bytes from index 4, length of: 1 for : [45, 0, 0, 0, 253, 4, 0, 0]
 
-fn bytes_to_string(mut bytes: Vec<u8>) -> String {
+fn bytes_to_string(bytes: Vec<u8>) -> String {
     bytes.iter().map(|b| char::from(*b)).collect()
 }
+
 
 #[derive(Debug, BinRead, Clone, Default, PartialEq, Eq)]
 #[br(little, import { name: &str })]
 pub enum DeserializeLump {
-    #[br(pre_assert(name.starts_with("THING")))] Thing {
-        x: i16,
-        y: i16,
-        angle_facing: i16,
-        doomed_thing_type: i16,
-        flags: ThingFlags,
-    
-    },
-    #[br(pre_assert(name.starts_with("LINEDEF")))] LineDef {
-        start_vertex_id: i16,
-        end_vertex_id: i16,
-        flags: LineDefFlags,
-        special_type: i16,
-        tag: i16,
-        front: i16,
-        back: i16,
-    },
-
-    #[br(pre_assert(name.starts_with("SIDEDEF")))] SideDef {
-        x_offset: i16,
-        y_offset: i16,
-        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
-        name_of_upper: String,
-        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
-        name_of_lower: String,
-        #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
-        name_of_middle: String,
-        sector_this_sidedef_faces: i16
-    },
-    #[br(pre_assert(name.starts_with("VERTEX")))] Vertex {
-        x: i16,
-        y: i16
-    },
-    #[br(pre_assert(name.starts_with("SEG")))] Segment {
-        start_vertext_id: i16,
-        end_verext_id: i16,
-        angle: i16, // full circle is -32768 to 32767.
-        line_def_id: i16,
-        direction: i16, //  0 (same as linedef) or 1 (opposite of linedef)
-        offset: i16, // distance along linedef to start of segments 
-    },
-    #[br(pre_assert(name.starts_with("SSECTOR")))] SubSector {
-        segments_count: i16,
-        first_segments_id: i16
-    },
-    #[br(pre_assert(name.starts_with("NODE")))] Node {
-        x_partion_line_start: i16,
-        y_partion_line_start: i16,
-        change_in_x_partion_line_start_to_end: i16,
-        change_in_y_partion_line_start_to_end: i16,
-        #[br(count = 4)]
-        right_bounding_box: Vec<i16>,
-        #[br(count = 4)]
-        left_bounding_box: Vec<i16>,
-        right_child: i16,
-        left_child: i16,
-    },
-    #[br(pre_assert(name.starts_with("SECTOR")))] Sector {
-        floor_height: i16,
-        ceiling_height: i16,
-        #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
-        name_of_floor_texture: String,
-        #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
-        name_of_ceiling_texture: String,
-        light_level: i16,
-        special_type: i16,
-        tag: i16,
-    },
-    #[br(pre_assert(name.starts_with("REJECT")))] Reject {
-        #[br(count = reject_count())]
-        table: Vec<u8>
-    },
-    #[br(pre_assert(name.starts_with("BLOCKMAP")))] BlockMap {
-        x_grid_origin: i16,
-        y_grid_origin: i16,
-        columns: i16,
-        rows: i16,
-        //#[br(count = (columns as usize * rows as usize))]
-        //offsets: Vec<i16>
-    },
+    #[br(pre_assert(name.starts_with("THING")))]  Thing(Thing),
+    #[br(pre_assert(name.starts_with("LINEDEF")))] LineDef(LineDef),
+    #[br(pre_assert(name.starts_with("SIDEDEF")))] SideDef(SideDef),
+    #[br(pre_assert(name.starts_with("VERTEX")))] Vertex(Vertex),
+    #[br(pre_assert(name.starts_with("SEG")))] Segment(Segment),
+    #[br(pre_assert(name.starts_with("SSECTOR")))] SubSector(SubSector),
+    #[br(pre_assert(name.starts_with("NODE")))] Node(Node),
+    #[br(pre_assert(name.starts_with("SECTOR")))] Sector(Sector),
+    #[br(pre_assert(name.starts_with("REJECT")))] Reject(Reject) ,
+    #[br(pre_assert(name.starts_with("BLOCKMAP")))] BlockMap(BlockMap),
     #[default] N
+}
+
+try_outer_to_inner!(DeserializeLump, Thing, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, LineDef, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, SideDef, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, Vertex, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, Segment, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, SubSector, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, Node, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, Sector, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, Reject, Error, Unwraping);
+try_outer_to_inner!(DeserializeLump, BlockMap, Error, Unwraping);
+
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+
+pub struct Thing {
+    pub x: i16,
+    pub y: i16,
+    pub angle_facing: i16,
+    pub doomed_thing_type: i16,
+    pub flags: ThingFlags,
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct LineDef {
+    pub start_vertex_id: i16,
+    pub end_vertex_id: i16,
+    pub flags: LineDefFlags,
+    pub special_type: i16,
+    pub tag: i16,
+    pub front: i16,
+    pub back: i16,
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct SideDef {
+    pub x_offset: i16,
+    pub y_offset: i16,
+    #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
+    pub name_of_upper: String,
+    #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
+    pub name_of_lower: String,
+    #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
+    pub name_of_middle: String,
+    pub sector_this_sidedef_faces: i16
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct Vertex {
+    pub x: i16,
+    pub y: i16
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct Segment {
+    pub start_vertext_id: i16,
+    pub end_verext_id: i16,
+    pub angle: i16, // full circle is -32768 to 32767.
+    pub line_def_id: i16,
+    pub direction: i16, //  0 (same as linedef) or 1 (opposite of linedef)
+    pub offset: i16, // distance along linedef to start of segments 
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct SubSector {
+    pub segments_count: i16,
+    pub first_segments_id: i16
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct Node {
+    pub x_partion_line_start: i16,
+    pub y_partion_line_start: i16,
+    pub change_in_x_partion_line_start_to_end: i16,
+    pub change_in_y_partion_line_start_to_end: i16,
+    #[br(count = 4)]
+    pub right_bounding_box: Vec<i16>,
+    #[br(count = 4)]
+    pub left_bounding_box: Vec<i16>,
+    pub right_child: i16,
+    pub left_child: i16,
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct Sector {
+    pub floor_height: i16,
+    pub ceiling_height: i16,
+    #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
+    pub name_of_floor_texture: String,
+    #[br(count = 8, map = |x: Vec<u8>| String::from_utf8(x).unwrap())]
+    pub name_of_ceiling_texture: String,
+    pub light_level: i16,
+    pub special_type: i16,
+    pub tag: i16,
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct Reject {
+    #[br(count = reject_count())]
+    pub table: Vec<u8>
+}
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct BlockMap {
+    pub x_grid_origin: i16,
+    pub y_grid_origin: i16,
+    pub columns: i16,
+    pub rows: i16,
+    //#[br(count = (columns as usize * rows as usize))]
+    //pub offsets: Vec<i16>
 }
 
 

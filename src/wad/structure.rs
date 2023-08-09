@@ -35,22 +35,22 @@ pub type Points = Vec<Point>;
 
 pub type P1P2 = (Point, Point);
 
-pub type LineDefVertexes = Vec<(P1P2)>;
+pub type LineDefVertexes = Vec<P1P2>;
 
 
 #[derive(Debug)]
-pub struct Map<'m> {
-    pub name: &'m str,
-    pub things: &'m Lump,
-    pub line_defs: &'m Lump,
-    pub side_defs: &'m Lump,
-    pub vertexs: &'m Lump,
-    pub segments: &'m Lump,
-    pub sub_sectors: &'m Lump,
-    pub nodes: &'m Lump,
-    pub sectors: &'m Lump,
-    pub reject: &'m Lump,
-    pub block_map: &'m Lump,
+pub struct Map {
+    pub name: String,
+    pub things: Lump,
+    pub line_defs: Lump,
+    pub side_defs: Lump,
+    pub vertexs: Lump,
+    pub segments: Lump,
+    pub sub_sectors: Lump,
+    pub nodes: Lump,
+    pub sectors: Lump,
+    pub reject: Lump,
+    pub block_map: Lump,
     map_points: OnceLock<Points>,
     map_bounds: OnceLock<P1P2>,
 }
@@ -58,57 +58,40 @@ pub struct Map<'m> {
 
 type Offset = usize;
 
-impl<'m> std::convert::From<(&'m Vec<Lump>, Offset)> for Map<'m> {
-    fn from((wad_lumps, offset): ((&'m Vec<Lump>, Offset))) -> Self {
+impl std::convert::From<(&Vec<Lump>, Offset)> for Map {
+    fn from((wad_lumps, offset): (&Vec<Lump>, Offset)) -> Self {
         Self::new(wad_lumps, offset)
     }
 }
 
-impl<'m> Map<'m> {
+impl Map {
 
-    pub fn new(wad_lumps: &'m Vec<Lump>, offset: Offset) -> Self {
+    pub fn new(wad_lumps: &Vec<Lump>, offset: Offset) -> Self {
         Map {
-            name: &wad_lumps[offset].name,
-            things: &wad_lumps[offset + 1],
-            line_defs: &wad_lumps[offset + 2],
-            side_defs: &wad_lumps[offset + 3],
-            vertexs: &wad_lumps[offset + 4],
-            segments: &wad_lumps[offset + 5],
-            sub_sectors: &wad_lumps[offset + 6],
-            nodes: &wad_lumps[offset + 7],
-            sectors: &wad_lumps[offset + 8],
-            reject: &wad_lumps[offset + 9],
-            block_map: &wad_lumps[offset + 10],
+            name: wad_lumps[offset].name.clone(),
+            things: wad_lumps[offset + 1].clone(),
+            line_defs: wad_lumps[offset + 2].clone(),
+            side_defs: wad_lumps[offset + 3].clone(),
+            vertexs: wad_lumps[offset + 4].clone(),
+            segments: wad_lumps[offset + 5].clone(),
+            sub_sectors: wad_lumps[offset + 6].clone(),
+            nodes: wad_lumps[offset + 7].clone(),
+            sectors: wad_lumps[offset + 8].clone(),
+            reject: wad_lumps[offset + 9].clone(),
+            block_map: wad_lumps[offset + 10].clone(),
             map_points: OnceLock::new(),
             map_bounds: OnceLock::new(),
         }
     }
 
 
-    pub fn scale_map_points(&self, max_width: i32, max_height: i32, boarder: i32) -> Points {
-        let ((x_min, x_max),(y_min, y_max)) = self.map_bounds();
-        self.map_points().iter().map(|(x, y)| {
-            (
-                Self::scale_x(*x_min, *x_max, *x, boarder, max_width - boarder),
-                Self::scale_y(*y_min, *y_max, *y, boarder, max_height - boarder, max_height)
-            )
-        }).collect()
-    } 
 
-    #[inline]
-    fn scale_x(x_min: i32, x_max: i32, n: i32, out_min: i32, out_max: i32) -> i32 {
-        (x_min.max(x_max.min(n)) - x_min) * (out_max - out_min) / (x_max - x_min) + out_min
-    }
-
-    fn scale_y(y_min: i32, y_max: i32, n: i32, out_min: i32, out_max: i32, max_height: i32) -> i32 {
-        max_height - (y_min.max(y_max.min(n)) - y_min) * (out_max - out_min) / (y_max - y_min) - out_min
-    }
 
     pub fn map_points(&self) -> &Points {
         &self.map_points.get_or_init(|| {
             self.vertexs.lump_data_deserialized().iter().fold(Points::new(), |mut points, v| {
-                if let DeserializeLump::Vertex { x, y } = v {
-                    points.push((*x as i32, *y as i32));
+                if let DeserializeLump::Vertex(vertex) = v {
+                    points.push((vertex.x as i32, vertex.y as i32));
                     points
                 } else { panic!("Tried to create map points from non Vertex Lump: `{v:?}`") }
                 
@@ -129,14 +112,14 @@ impl<'m> Map<'m> {
     }
 
     
-    pub fn line_defs_to_vertexes(&'m self, map_points: Option<&'m Points>) -> CliResult<Vec<(&'m (i32, i32), &'m (i32, i32))>> {
+    pub fn line_defs_to_vertexes<'a>(&'a self, map_points: Option<&'a Points>) -> CliResult<Vec<(&'a (i32, i32), &'a (i32, i32))>> {
         let line_defs: &DeserializedLumps = &self.line_defs.lump_data_deserialized();
         let map_points = if let Some(m) = map_points { &m } else { self.map_points() };
         let mut output: Vec<(&(i32, i32), &(i32, i32))> = Vec::new();
 
         for line_def in line_defs.iter() {
-            if let DeserializeLump::LineDef { start_vertex_id, end_vertex_id, ..} = &line_def {
-                output.push((&map_points[*start_vertex_id as usize], &map_points[*end_vertex_id as usize]));
+            if let DeserializeLump::LineDef(line_def) = &line_def {
+                output.push((&map_points[line_def.start_vertex_id as usize], &map_points[line_def.end_vertex_id as usize]));
             } else { return Err(Error::Lump(lumps::Error::Access("Tried to deserialize as Linedef, was not linedef, was: {line_Def:?}".to_string())).into()); }
         }
         Ok(output)
