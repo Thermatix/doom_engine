@@ -41,7 +41,7 @@ pub struct InGame {}
 pub struct Engine<State, Draw = draw::Draw2D> 
     where Draw: Manager {
     pub reader: wad::Reader,
-    pub context: Context,
+    pub context: Option<Context>,
     pub sdl_context: sdl2::Sdl,
     video: VideoSubsystem,
     //window: Window,
@@ -52,19 +52,20 @@ pub struct Engine<State, Draw = draw::Draw2D>
 
 #[derive(Debug)]
 pub struct Context {
-    pub current_map: Option<wad::Map>,
-    pub player: Option<Player>,
+    pub current_map: wad::Map,
+    pub bsp: bsp::Tree,
+    pub player: Player,
 }
 
-impl Context {
+// impl Context {
 
-    pub fn new() -> Self {
-        Self {
-            current_map: None,
-            player: None,
-        }
-    }
-}
+//     pub fn new() -> Self {
+//         Self {
+//             current_map: None,
+//             player: None,
+//         }
+//     }
+// }
 
 impl Engine<Init> {
     pub fn new(args: &cli::Args) -> CliResult<Self> {
@@ -80,7 +81,7 @@ impl Engine<Init> {
                                                 .build().unwrap();
         Ok(Self {
             reader,
-            context: Context::new(),
+            context: None,
             sdl_context,
             video,
             canvas,
@@ -111,11 +112,17 @@ impl<'e> Engine<MainMenu> {
         let player_thing: wad::Thing = map.things.lump_data_deserialized()[0].clone().into();
 
         let player = Player::new(player_thing);
-        self.context.current_map = Some(map);
-        self.context.player = Some(player);
+     
+        let bsp = bsp::Tree::new(&map);
+
+        let mut context = Context {
+            current_map: map,
+            player: player,
+            bsp: bsp
+        };
         Ok(Engine {
             reader: self.reader,
-            context: self.context,
+            context: Some(context),
             sdl_context: self.sdl_context,
             video: self.video,
             canvas: self.canvas,
@@ -167,7 +174,7 @@ impl GameLoopStages for Engine<InGame> {
     }
 
     fn render(&mut self) {
-        self.draw.draw_layers(&mut self.canvas, &mut self.context);
+        self.draw.draw_layers(&mut self.canvas, self.context.as_mut().unwrap());
     }
 }
 

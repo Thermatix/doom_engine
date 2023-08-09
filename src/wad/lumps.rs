@@ -293,10 +293,10 @@ pub struct SubSector {
 
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct Node {
-    pub x_partion_line_start: i16,
-    pub y_partion_line_start: i16,
-    pub change_in_x_partion_line_start_to_end: i16,
-    pub change_in_y_partion_line_start_to_end: i16, 
+    pub x_partion: i16,
+    pub y_partion: i16,
+    pub dx_partion: i16,
+    pub dy_partion: i16, 
     pub right_bounding_box: BoundingBox,
     pub left_bounding_box: BoundingBox,
     pub right_child: i16,
@@ -342,7 +342,7 @@ pub struct BoundingBox {
     pub top: i16,
     pub bottom: i16,
     pub left: i16,
-    pub right: i16
+    pub right: i16,
 }
 
 #[bitfield]

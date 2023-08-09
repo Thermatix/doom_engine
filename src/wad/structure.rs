@@ -65,7 +65,7 @@ impl std::convert::From<(&Vec<Lump>, Offset)> for Map {
 }
 
 impl Map {
-
+    //TODO: Fix using .clone()
     pub fn new(wad_lumps: &Vec<Lump>, offset: Offset) -> Self {
         Map {
             name: wad_lumps[offset].name.clone(),
