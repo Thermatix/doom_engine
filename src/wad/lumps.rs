@@ -296,14 +296,15 @@ pub struct Node {
     pub x_partion_line_start: i16,
     pub y_partion_line_start: i16,
     pub change_in_x_partion_line_start_to_end: i16,
-    pub change_in_y_partion_line_start_to_end: i16,
-    #[br(count = 4)]
-    pub right_bounding_box: Vec<i16>,
-    #[br(count = 4)]
-    pub left_bounding_box: Vec<i16>,
+    pub change_in_y_partion_line_start_to_end: i16, 
+    pub right_bounding_box: BoundingBox,
+    pub left_bounding_box: BoundingBox,
     pub right_child: i16,
     pub left_child: i16,
 }
+
+
+
 
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct Sector {
@@ -334,6 +335,15 @@ pub struct BlockMap {
     //pub offsets: Vec<i16>
 }
 
+
+
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub struct BoundingBox {
+    pub top: i16,
+    pub bottom: i16,
+    pub left: i16,
+    pub right: i16
+}
 
 #[bitfield]
 #[derive(Debug, Clone, PartialEq, Eq)]

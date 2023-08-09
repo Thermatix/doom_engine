@@ -21,9 +21,9 @@ pub struct Args {
     pub map_name: Option<String>,
     #[arg(short = 'l', long)]
     pub list_maps: bool,
-    #[arg(short = 'x', long, default_value = "800")]
-    pub screen_width: i32,
-    #[arg(short = 'y', long, default_value = "600")]
-    pub screen_height: i32,
+    #[arg(short = 'x', long, default_value = "1024")]
+    pub screen_width: i16,
+    #[arg(short = 'y', long, default_value = "768")]
+    pub screen_height: i16,
 
 }

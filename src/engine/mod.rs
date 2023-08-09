@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+mod bsp;
 mod player;
 mod draw;
 mod errors;
@@ -24,14 +25,6 @@ use sdl2::{
 };
 
 
-// use binrw::{
-//     binrw,    // #[binrw] attribute
-//     BinRead,  // trait for reading
-//     BinWrite, // trait for writing
-//     BinReaderExt, 
-//     io::Cursor,
-// };
-
 pub use errors::*;
 
 use self::player::Player;
@@ -42,7 +35,6 @@ pub struct Init {}
 pub struct MainMenu {}
 pub struct InGameMenu {}
 pub struct InGame {}
-
 
 
 //#[derive(Debug)]
@@ -209,10 +201,12 @@ impl<State> GameLoop for Engine<State> where Engine<State>: GameLoopStages {
     }  
 }
 
+pub enum Action {
+    Quit
+}
 
-trait GameLoopStages {
-
-    fn input(&self, event: Event) -> Option<Action> {
+pub trait GameLoopStages {
+    fn input(&self, _event: Event) -> Option<Action> {
         None
     }
 
@@ -220,14 +214,9 @@ trait GameLoopStages {
 
     fn render(&mut self);
 }
-pub 
-trait GameLoop: GameLoopStages {
+pub trait GameLoop: GameLoopStages {
 
     fn main_loop(&mut self) {
         
     }
-}
-
-enum Action {
-    Quit
 }

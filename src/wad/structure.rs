@@ -30,7 +30,7 @@ pub enum Identification {
 } 
 
 use std::sync::OnceLock;
-pub type Point = (i32, i32);
+pub type Point = (i16, i16);
 pub type Points = Vec<Point>;
 
 pub type P1P2 = (Point, Point);
@@ -91,7 +91,7 @@ impl Map {
         &self.map_points.get_or_init(|| {
             self.vertexs.lump_data_deserialized().iter().fold(Points::new(), |mut points, v| {
                 if let DeserializeLump::Vertex(vertex) = v {
-                    points.push((vertex.x as i32, vertex.y as i32));
+                    points.push((vertex.x, vertex.y));
                     points
                 } else { panic!("Tried to create map points from non Vertex Lump: `{v:?}`") }
                 
@@ -112,10 +112,10 @@ impl Map {
     }
 
     
-    pub fn line_defs_to_vertexes<'a>(&'a self, map_points: Option<&'a Points>) -> CliResult<Vec<(&'a (i32, i32), &'a (i32, i32))>> {
+    pub fn line_defs_to_vertexes<'a>(&'a self, map_points: Option<&'a Points>) -> CliResult<Vec<(&'a (i16, i16), &'a (i16, i16))>> {
         let line_defs: &DeserializedLumps = &self.line_defs.lump_data_deserialized();
-        let map_points = if let Some(m) = map_points { &m } else { self.map_points() };
-        let mut output: Vec<(&(i32, i32), &(i32, i32))> = Vec::new();
+        let map_points: &Vec<(i16, i16)> = if let Some(m) = map_points { &m } else { self.map_points() };
+        let mut output: Vec<(&(i16, i16), &(i16, i16))> = Vec::new();
 
         for line_def in line_defs.iter() {
             if let DeserializeLump::LineDef(line_def) = &line_def {
