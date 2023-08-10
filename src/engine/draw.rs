@@ -117,20 +117,20 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     let bsp = &context.bsp;
     let root_node: &wad::Node = bsp.nodes.lump_data_deserialized().get(bsp.root_node_id).unwrap().try_into().unwrap();
     
-    let (rx, ry) = map_utils::scale_xy(root_node.right_bounding_box.left, root_node.right_bounding_box.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (rw, rh) = map_utils::scale_xy(root_node.right_bounding_box.right, root_node.right_bounding_box.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    
-    let (lx, ly) = map_utils::scale_xy(root_node.left_bounding_box.left, root_node.left_bounding_box.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (lw, lh) = map_utils::scale_xy(root_node.left_bounding_box.right, root_node.left_bounding_box.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (fx, fy) = map_utils::scale_xy(root_node.front_bbox.left, root_node.front_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (fw, fh) = map_utils::scale_xy(root_node.front_bbox.right, root_node.front_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    println!("rl.rt: {}.{}, rr.rb: {}.{} ", root_node.front_bbox.left, root_node.front_bbox.top, root_node.front_bbox.right, root_node.front_bbox.bottom);
+    println!("fx.fy: {fx}.{fy}, fw.fh: {fw}.{fh} ");
+
+    let (bx, by) = map_utils::scale_xy(root_node.back_bbox.left, root_node.back_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.right, root_node.back_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
     let p_xy1 = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let p_xy2 = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    canvas.rectangle(rx, ry, rw - rx, rh - ry, Color::GREEN).unwrap();
-    canvas.rectangle(lx, ly, lw - lx, lh - ly, Color::RED).unwrap();
+    canvas.rectangle(fx, fy, fw - fx, fh - fy, Color::GREEN).unwrap();
+    canvas.rectangle(bx, by,bw - bx, bh - by, Color::RED).unwrap();
     canvas.aa_line(p_xy1.0, p_xy1.1, p_xy2.0, p_xy2.1, Color::BLUE).unwrap();
-    
-
 }
 
 fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
@@ -194,6 +194,7 @@ mod map_utils {
         (x_min.max(x_max.min(n)) - x_min) * (out_max - out_min) / (x_max - x_min) + out_min
     }
 
+    #[inline]
     pub fn scale_y(y_min: i32, y_max: i32, n: i32, out_min: i32, out_max: i32, screen_height: i32) -> i32 {
         screen_height - (y_min.max(y_max.min(n)) - y_min) * (out_max - out_min) / (y_max - y_min) - out_min
     }
