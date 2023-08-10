@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use super::*;
 
-use std::ops::DerefMut;
+use std::ops::{DerefMut, Range};
 use std::{sync::OnceLock, hash::Hash};
 use std::convert::{TryFrom, From};
 use std::fmt::{self, Display};
@@ -76,7 +76,7 @@ impl Lump {
             else if name.starts_with("VERTEX") { 4 }
             else if name.starts_with("SEG") { 12 }
             else if name.starts_with("SSECTOR") { 4 }
-            else if name.starts_with("NODES") { 18 }
+            else if name.starts_with("NODES") { 28 }
             else if name.starts_with("SECTOR") { 26 }
             else if name.starts_with("REJECT") { 1 }
             else if name.starts_with("BLOCKMAP") { 8 }
@@ -292,6 +292,13 @@ pub struct SubSector {
     pub first_segments_id: i16
 }
 
+impl SubSector {
+    pub fn to_range(&self) -> core::ops::RangeInclusive<usize> {
+        // Might need to be non inclusive
+        (self.first_segments_id as usize)..=(self.segments_count as usize)
+    }
+}
+
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct Node {
     pub x_partion: i16,
@@ -342,10 +349,10 @@ pub enum SegDirection {
 
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct BoundingBox {
-    pub top: i16,
-    pub bottom: i16,
-    pub left: i16,
-    pub right: i16,
+    pub x: i16,
+    pub h: i16,
+    pub y: i16,
+    pub w: i16,
 }
 
 #[bitfield]
