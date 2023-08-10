@@ -281,9 +281,10 @@ pub struct Segment {
     pub end_verext_id: i16,
     pub angle: i16, // full circle is -32768 to 32767.
     pub line_def_id: i16,
-    pub direction: i16, //  0 (same as linedef) or 1 (opposite of linedef)
+    pub direction: SegDirection,
     pub offset: i16, // distance along linedef to start of segments 
 }
+
 
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct SubSector {
@@ -333,7 +334,11 @@ pub struct BlockMap {
     //pub offsets: Vec<i16>
 }
 
-
+#[derive(Debug, BinRead, Clone, PartialEq, Eq)]
+pub enum SegDirection {
+    #[br(magic = b"0")] SameAsLineDef,
+    #[br(magic = b"1")] OppositOfLineDef,
+}
 
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct BoundingBox {

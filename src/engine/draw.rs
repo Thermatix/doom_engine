@@ -1,5 +1,37 @@
+use std::collections::HashMap;
+use std::hash::Hash;
+use std::sync::OnceLock;
+
 use super::*;
 use sdl2::gfx::primitives::DrawRenderer;
+
+pub static mut META: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
+
+
+pub fn meta() -> &'static HashMap<&'static str, usize> {
+    unsafe {
+        META.get_or_init(|| HashMap::new())
+    }
+}
+
+
+pub fn get_mutmeta() -> &'static mut HashMap<&'static str, usize> {
+    unsafe {
+        META.get_or_init(|| HashMap::new() );
+        META.get_mut().unwrap()
+    }
+}
+
+pub fn set_meta(k: &'static str, v: usize, ovewrite: bool) {
+    let meta = get_mutmeta();
+
+    if ovewrite || meta.get(k) == None {
+        meta.insert(k, v);
+    }
+
+
+}
+
 
 
 pub type Layers<Draw> = Vec<Layer<Draw>>;
@@ -46,7 +78,7 @@ impl Manager for Draw2D {
 
     fn draw_layers(&self, canvas: &mut Canvas<Window>, context: &Context) {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
-        canvas.clear();
+        //canvas.clear();
         for layer in self.layers.iter() {
             layer.draw(canvas, context, self);
         };
@@ -119,22 +151,35 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     
     let (fx, fy) = map_utils::scale_xy(root_node.front_bbox.left, root_node.front_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let (fw, fh) = map_utils::scale_xy(root_node.front_bbox.right, root_node.front_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    println!("rl.rt: {}.{}, rr.rb: {}.{} ", root_node.front_bbox.left, root_node.front_bbox.top, root_node.front_bbox.right, root_node.front_bbox.bottom);
-    println!("fx.fy: {fx}.{fy}, fw.fh: {fw}.{fh} ");
+
+    let fw = fw - fx;
+    let fh = fh - fy;
+
+    //println!("fl.ft: {}.{}, fr.fb: {}.{} ", root_node.front_bbox.left, root_node.front_bbox.top, root_node.front_bbox.right, root_node.front_bbox.bottom);
+    //println!("fx.fy: {fx}.{fy}, fw.fh: {fw}.{fh} ");
 
     let (bx, by) = map_utils::scale_xy(root_node.back_bbox.left, root_node.back_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.right, root_node.back_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    let p_xy1 = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let p_xy2 = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let bw = bw - bx;
+    let bh = bh - by;
+    //println!("bx.by: {bx}.{by}, bw.bh: {bw}.{bh} ");
+    //println!("p1x.p1y {}.{}, p2x.p2y {}.{}", root_node.x_partion, root_node.y_partion, root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion);
 
-    canvas.rectangle(fx, fy, fw - fx, fh - fy, Color::GREEN).unwrap();
-    canvas.rectangle(bx, by,bw - bx, bh - by, Color::RED).unwrap();
-    canvas.aa_line(p_xy1.0, p_xy1.1, p_xy2.0, p_xy2.1, Color::BLUE).unwrap();
+    let (p1x, p1y) = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (p2x, p2y) = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+
+    canvas.rectangle(fx, fy, fh, fw, Color::GREEN).unwrap();
+    canvas.rectangle(bx, by,bw, bh, Color::RED).unwrap();
+    canvas.aa_line(p1x, p1y, p2x, p2y, Color::BLUE).unwrap();
 }
 
 fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
+    set_meta("draw_vertexes", 0, false);
+    if meta()["draw_vertexes"] >= 1 { return };
+    set_meta("map_vertexes_drawn", 0, false);
 
+    let current_vetex = meta()["map_vertexes_drawn"];
     let map = &context.current_map;
 
     let points = map_utils::scale_map_points(
@@ -143,18 +188,27 @@ fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Contex
         (manager.screen_width(), manager.screen_height()),
         30
     );
- 
-    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)).unwrap()  {
-        //canvas.set_draw_color(Color::YELLOW);
-        canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
-        //canvas.draw_point(*p1).unwrap();
-        canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
-        //canvas.draw_point(*p2).unwrap();
-    }     
+
+    let vertexes = map.line_defs_to_vertexes(Some(&points));
+    let (p1, p2) = vertexes[current_vetex];
+
+    canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
+    canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
+
+    if (current_vetex + 1) >= points.len() {
+        set_meta("draw_vertexes", 1, true);
+    } else {
+        set_meta("map_vertexes_drawn", current_vetex + 1, true);
+    }
+
 }
 
 fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
+    set_meta("draw_lines", 0, false);
+    if meta()["draw_lines"] >= 1 { return };
+    set_meta("map_lines_drawn", 0, false);
 
+    let current_line = meta()["map_lines_drawn"];
     let map = &context.current_map;
 
 
@@ -165,9 +219,16 @@ fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, m
         30
     );
 
-    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)).unwrap()  {
-        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, Color::GREY).unwrap();
-    }    
+    let vertexes = map.line_defs_to_vertexes(Some(&points));
+    let (p1, p2) = vertexes[current_line];
+
+    canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, Color::GREY).unwrap();
+
+    if (current_line + 1) >= vertexes.len() {
+        set_meta("draw_lines", 1, true);
+    } else {
+        set_meta("map_lines_drawn", current_line + 1, true);
+    }
 }
 
 mod map_utils {
@@ -178,7 +239,7 @@ mod map_utils {
         map_points.iter().map(|(x, y)| {
             scale_xy(*x, *y, &map_bounds, max_bounds, boarder)
         }).collect()
-    } 
+    }
 
     #[inline]
     pub fn scale_xy(x: i16, y: i16,  map_bounds: &wad::P1P2, max_bounds: wad::Point, boarder: i16) -> wad::Point {

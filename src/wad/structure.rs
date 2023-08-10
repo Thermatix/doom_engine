@@ -53,6 +53,7 @@ pub struct Map {
     pub block_map: Lump,
     map_points: OnceLock<Points>,
     map_bounds: OnceLock<P1P2>,
+    line_defs_to_vertexes: OnceLock<Vec<((i16, i16), (i16, i16))>>,
 }
 
 
@@ -81,6 +82,7 @@ impl Map {
             block_map: wad_lumps[offset + 10].clone(),
             map_points: OnceLock::new(),
             map_bounds: OnceLock::new(),
+            line_defs_to_vertexes : OnceLock::new(),
         }
     }
 
@@ -112,16 +114,17 @@ impl Map {
     }
 
     
-    pub fn line_defs_to_vertexes<'a>(&'a self, map_points: Option<&'a Points>) -> CliResult<Vec<(&'a (i16, i16), &'a (i16, i16))>> {
-        let line_defs: &DeserializedLumps = &self.line_defs.lump_data_deserialized();
-        let map_points: &Vec<(i16, i16)> = if let Some(m) = map_points { &m } else { self.map_points() };
-        let mut output: Vec<(&(i16, i16), &(i16, i16))> = Vec::new();
+    pub fn line_defs_to_vertexes<'a>(&'a self, map_points: Option<&'a Points>) -> &Vec<((i16, i16), (i16, i16))> {
+        self.line_defs_to_vertexes.get_or_init(|| {
+            let line_defs: &DeserializedLumps = &self.line_defs.lump_data_deserialized();
+            let map_points: &Vec<(i16, i16)> = if let Some(m) = map_points { &m } else { self.map_points() };
+            let mut output: Vec<((i16, i16), (i16, i16))> = Vec::new();
 
-        for line_def in line_defs.iter() {
-            if let DeserializeLump::LineDef(line_def) = &line_def {
-                output.push((&map_points[line_def.start_vertex_id as usize], &map_points[line_def.end_vertex_id as usize]));
-            } else { return Err(Error::Lump(lumps::Error::Access("Tried to deserialize as Linedef, was not linedef, was: {line_Def:?}".to_string())).into()); }
-        }
-        Ok(output)
+            for line_def in line_defs.iter() {
+                let line_def: LineDef = line_def.into();
+                output.push((map_points[line_def.start_vertex_id as usize], map_points[line_def.end_vertex_id as usize]));
+            }
+            output
+        })
     }
 }
