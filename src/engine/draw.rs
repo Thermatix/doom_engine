@@ -174,19 +174,19 @@ mod map_utils {
     use super::*;
 
 
-    pub fn scale_map_points(map_points: &wad::Points, map_bounds: &wad::P1P2, screen_bounds: wad::Point, boarder: i16) -> wad::Points {
+    pub fn scale_map_points(map_points: &wad::Points, map_bounds: &wad::P1P2, max_bounds: wad::Point, boarder: i16) -> wad::Points {
         map_points.iter().map(|(x, y)| {
-            scale_xy(*x, *y, &map_bounds, screen_bounds, boarder)
+            scale_xy(*x, *y, &map_bounds, max_bounds, boarder)
         }).collect()
     } 
 
     #[inline]
-    pub fn scale_xy(x: i16, y: i16,  map_bounds: &wad::P1P2, screen_bounds: wad::Point, boarder: i16) -> wad::Point {
-        let (screen_width, screen_height) = screen_bounds;
+    pub fn scale_xy(x: i16, y: i16,  map_bounds: &wad::P1P2, max_bounds: wad::Point, boarder: i16) -> wad::Point {
+        let (max_width, max_height) = max_bounds;
         let ((x_min, x_max),(y_min, y_max)) = map_bounds;
         (
-            scale_x(*x_min as i32, *x_max as i32, x as i32, boarder as i32, (screen_width - boarder) as i32) as i16,
-            scale_y(*y_min as i32, *y_max as i32, y as i32, boarder as i32, (screen_height - boarder) as i32 , screen_height  as i32) as i16
+            scale_x(*x_min as i32, *x_max as i32, x as i32, boarder as i32, (max_width - boarder) as i32) as i16,
+            scale_y(*y_min as i32, *y_max as i32, y as i32, boarder as i32, (max_height - boarder) as i32 , max_height  as i32) as i16
         )
     }
     #[inline]
