@@ -304,8 +304,6 @@ pub struct Node {
 }
 
 
-
-
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct Sector {
     pub floor_height: i16,

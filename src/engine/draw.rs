@@ -105,9 +105,8 @@ pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, 
         player.x,
         player.y,
         &map.map_bounds(),
+        (manager.screen_width(), manager.screen_height()),
         30,
-        manager.screen_width(),
-        manager.screen_height(),
     );
 
     canvas.filled_circle(scaled_pos.0, scaled_pos.1, 5, Color::GREEN).unwrap();
@@ -118,15 +117,15 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     let bsp = &context.bsp;
     let root_node: &wad::Node = bsp.nodes.lump_data_deserialized().get(bsp.root_node_id).unwrap().try_into().unwrap();
     
-    let (rx, ry) = map_utils::scale_xy(root_node.right_bounding_box.left, root_node.right_bounding_box.top,  map.map_bounds(), 30, manager.screen_width(), manager.screen_height());
-    let (rw, rh) = map_utils::scale_xy(root_node.right_bounding_box.right, root_node.right_bounding_box.bottom,  map.map_bounds(), 30, manager.screen_width(), manager.screen_height());
+    let (rx, ry) = map_utils::scale_xy(root_node.right_bounding_box.left, root_node.right_bounding_box.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (rw, rh) = map_utils::scale_xy(root_node.right_bounding_box.right, root_node.right_bounding_box.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     
-    let (lx, ly) = map_utils::scale_xy(root_node.left_bounding_box.left, root_node.left_bounding_box.top,  map.map_bounds(), 30, manager.screen_width(), manager.screen_height());
-    let (lw, lh) = map_utils::scale_xy(root_node.left_bounding_box.right, root_node.left_bounding_box.bottom,  map.map_bounds(), 30, manager.screen_width(), manager.screen_height());
+    let (lx, ly) = map_utils::scale_xy(root_node.left_bounding_box.left, root_node.left_bounding_box.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (lw, lh) = map_utils::scale_xy(root_node.left_bounding_box.right, root_node.left_bounding_box.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    let p_xy1 = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), 30,manager.screen_width(), manager.screen_height());
-    let p_xy2 = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), 30,manager.screen_width(), manager.screen_height());
-    
+    let p_xy1 = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let p_xy2 = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+
     canvas.rectangle(rx, ry, rw - rx, rh - ry, Color::GREEN).unwrap();
     canvas.rectangle(lx, ly, lw - lx, lh - ly, Color::RED).unwrap();
     canvas.aa_line(p_xy1.0, p_xy1.1, p_xy2.0, p_xy2.1, Color::BLUE).unwrap();
@@ -176,19 +175,18 @@ mod map_utils {
 
 
     pub fn scale_map_points(map_points: &wad::Points, map_bounds: &wad::P1P2, screen_bounds: wad::Point, boarder: i16) -> wad::Points {
-        let ((x_min, x_max),(y_min, y_max)) = map_bounds;
-        let (screen_width, screen_height) = screen_bounds;
         map_points.iter().map(|(x, y)| {
-            scale_xy(*x, *y, &map_bounds, boarder, screen_width, screen_height)
+            scale_xy(*x, *y, &map_bounds, screen_bounds, boarder)
         }).collect()
     } 
 
     #[inline]
-    pub fn scale_xy(x: i16, y: i16,  map_bounds: &wad::P1P2, boarder: i16, max_width: i16, max_height: i16) -> wad::Point {
+    pub fn scale_xy(x: i16, y: i16,  map_bounds: &wad::P1P2, screen_bounds: wad::Point, boarder: i16) -> wad::Point {
+        let (screen_width, screen_height) = screen_bounds;
         let ((x_min, x_max),(y_min, y_max)) = map_bounds;
         (
-            scale_x(*x_min as i32, *x_max as i32, x as i32, boarder as i32, (max_width - boarder) as i32) as i16,
-            scale_y(*y_min as i32, *y_max as i32, y as i32, boarder as i32, (max_height - boarder) as i32 , max_height  as i32) as i16
+            scale_x(*x_min as i32, *x_max as i32, x as i32, boarder as i32, (screen_width - boarder) as i32) as i16,
+            scale_y(*y_min as i32, *y_max as i32, y as i32, boarder as i32, (screen_height - boarder) as i32 , screen_height  as i32) as i16
         )
     }
     #[inline]
