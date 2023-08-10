@@ -130,6 +130,8 @@ impl Draw2D {
 }
 
 pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
+    if let Some(v) = meta().get("draw_vertexes") { if *v == 0 { return } } else { return };
+    
     let player = &context.player;   
     let map = &context.current_map;
 
@@ -142,35 +144,36 @@ pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, 
     );
 
     canvas.filled_circle(scaled_pos.0, scaled_pos.1, 5, Color::GREEN).unwrap();
+    set_meta("player_is_drawn", 1, false);
+
 }
 
 fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
+    //if let Some(v) = meta().get("player_is_drawn") { if *v == 0 { return } } else { return };
+
     let map = &context.current_map;
     let bsp = &context.bsp;
     let root_node: &wad::Node = bsp.nodes.lump_data_deserialized().get(bsp.root_node_id).unwrap().try_into().unwrap();
-    
-    let (fx, fy) = map_utils::scale_xy(root_node.front_bbox.left, root_node.front_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (fw, fh) = map_utils::scale_xy(root_node.front_bbox.right, root_node.front_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    let fw = fw - fx;
-    let fh = fh - fy;
+    let (fx, fy) = map_utils::scale_xy(root_node.front_bbox.x, root_node.front_bbox.y, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (fw, fh) = map_utils::scale_xy(root_node.front_bbox.w, root_node.front_bbox.h,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    //println!("fl.ft: {}.{}, fr.fb: {}.{} ", root_node.front_bbox.left, root_node.front_bbox.top, root_node.front_bbox.right, root_node.front_bbox.bottom);
-    //println!("fx.fy: {fx}.{fy}, fw.fh: {fw}.{fh} ");
+    //let fw = fw - fx;
+    //let fh = fh - fy;
 
-    let (bx, by) = map_utils::scale_xy(root_node.back_bbox.left, root_node.back_bbox.top,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.right, root_node.back_bbox.bottom,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+
+    let (bx, by) = map_utils::scale_xy(root_node.back_bbox.x, root_node.back_bbox.y,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.w, root_node.back_bbox.h,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
     let bw = bw - bx;
     let bh = bh - by;
-    //println!("bx.by: {bx}.{by}, bw.bh: {bw}.{bh} ");
-    //println!("p1x.p1y {}.{}, p2x.p2y {}.{}", root_node.x_partion, root_node.y_partion, root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion);
 
     let (p1x, p1y) = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let (p2x, p2y) = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
     canvas.rectangle(fx, fy, fh, fw, Color::GREEN).unwrap();
-    canvas.rectangle(bx, by,bw, bh, Color::RED).unwrap();
+    canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
+    
     canvas.aa_line(p1x, p1y, p2x, p2y, Color::BLUE).unwrap();
 }
 
