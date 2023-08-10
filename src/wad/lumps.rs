@@ -347,12 +347,13 @@ pub enum SegDirection {
     #[br(magic = b"1")] OppositOfLineDef,
 }
 
+// top, bottom, left and righ
 #[derive(Debug, BinRead, Clone, PartialEq, Eq)]
 pub struct BoundingBox {
-    pub x: i16,
     pub h: i16,
     pub y: i16,
     pub w: i16,
+    pub x: i16,
 }
 
 #[bitfield]

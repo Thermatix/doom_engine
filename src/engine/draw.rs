@@ -130,7 +130,7 @@ impl Draw2D {
 }
 
 pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    if let Some(v) = meta().get("draw_vertexes") { if *v == 0 { return } } else { return };
+    if let Some(v) = meta().get("don't_draw_vertexes") { if *v == 0 { return } } else { return };
     
     let player = &context.player;   
     let map = &context.current_map;
@@ -165,8 +165,8 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     let (bx, by) = map_utils::scale_xy(root_node.back_bbox.x, root_node.back_bbox.y,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.w, root_node.back_bbox.h,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
 
-    let bw = bw - bx;
-    let bh = bh - by;
+    //let bw = bw - bx;
+    //let bh = bh - by;
 
     let (p1x, p1y) = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
     let (p2x, p2y) = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
@@ -174,15 +174,13 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     canvas.rectangle(fx, fy, fh, fw, Color::GREEN).unwrap();
     canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
     
-    canvas.aa_line(p1x, p1y, p2x, p2y, Color::BLUE).unwrap();
+    canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
 }
 
 fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    set_meta("draw_vertexes", 0, false);
-    if meta()["draw_vertexes"] >= 1 { return };
-    set_meta("map_vertexes_drawn", 0, false);
-
-    let current_vetex = meta()["map_vertexes_drawn"];
+    set_meta("don't_draw_vertexes", 0, false);
+    if meta()["don't_draw_vertexes"] >= 1 { return };
+    
     let map = &context.current_map;
 
     let points = map_utils::scale_map_points(
@@ -192,28 +190,20 @@ fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Contex
         30
     );
 
-    let vertexes = map.line_defs_to_vertexes(Some(&points));
-    let (p1, p2) = vertexes[current_vetex];
-
-    canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
-    canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
-
-    if (current_vetex + 1) >= points.len() {
-        set_meta("draw_vertexes", 1, true);
-    } else {
-        set_meta("map_vertexes_drawn", current_vetex + 1, true);
+    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)) {
+        canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
+        canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
     }
+
+    set_meta("don't_draw_vertexes", 1, true);
 
 }
 
 fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    set_meta("draw_lines", 0, false);
-    if meta()["draw_lines"] >= 1 { return };
-    set_meta("map_lines_drawn", 0, false);
+    set_meta("don't_draw_lines", 0, false);
+    if meta()["don't_draw_lines"] >= 1 { return };
 
-    let current_line = meta()["map_lines_drawn"];
     let map = &context.current_map;
-
 
     let points = map_utils::scale_map_points(
         map.map_points(),
@@ -222,16 +212,11 @@ fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, m
         30
     );
 
-    let vertexes = map.line_defs_to_vertexes(Some(&points));
-    let (p1, p2) = vertexes[current_line];
-
-    canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, Color::GREY).unwrap();
-
-    if (current_line + 1) >= vertexes.len() {
-        set_meta("draw_lines", 1, true);
-    } else {
-        set_meta("map_lines_drawn", current_line + 1, true);
+    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)) {
+        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, Color::GREY).unwrap();
     }
+
+    set_meta("don't_draw_lines", 1, true);
 }
 
 mod map_utils {
