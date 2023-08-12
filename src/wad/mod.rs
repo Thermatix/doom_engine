@@ -22,6 +22,7 @@ pub use lumps::{
     Segment,
     SubSector,
     Node,
+    BoundingBox,
     Sector,
     Reject,
     BlockMap,

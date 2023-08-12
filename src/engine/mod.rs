@@ -12,6 +12,7 @@ use crate::errors::{CliResult,Errors};
 
 use crate::wad;
 
+
 use draw::Manager;
 
 
@@ -134,6 +135,9 @@ impl<'e> Engine<MainMenu> {
 
 impl<'e> Engine<InGame> {
     pub fn pause(mut self) -> CliResult<'e, Engine<InGameMenu>> {
+        // use std::{thread, time};
+        // let one_second = time::Duration::from_secs(1);
+        // thread::sleep(one_second);
         Ok(Engine {
             reader: self.reader,
             context: self.context,

@@ -152,29 +152,33 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
     //if let Some(v) = meta().get("player_is_drawn") { if *v == 0 { return } } else { return };
 
     let map = &context.current_map;
+    let player = &context.player;
     let bsp = &context.bsp;
-    let root_node: &wad::Node = bsp.nodes.lump_data_deserialized().get(bsp.root_node_id).unwrap().try_into().unwrap();
 
-    let (fx, fy) = map_utils::scale_xy(root_node.front_bbox.x, root_node.front_bbox.y, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (fw, fh) = map_utils::scale_xy(root_node.front_bbox.w, root_node.front_bbox.h,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+    let bounds = (manager.screen_width(), manager.screen_height());
+    let boarder: i16 = 30;
 
-    //let fw = fw - fx;
-    //let fh = fh - fy;
+    for node_or_leaf in bsp.traverse((player.x, player.y)) {
+        if let bsp::NodeType::Node(node) = node_or_leaf {
+            let ((fx, fy), (fw, fh)) = get_bounding_box(&node.front_bbox, &map,bounds, boarder);
+            let ((bx, by), (bw, bh)) = get_bounding_box(&node.back_bbox, &map,bounds, boarder);
 
+            let (p1x, p1y) = map_utils::scale_xy(node.x_partion, node.y_partion, map.map_bounds(), bounds, boarder);
+            let (p2x, p2y) = map_utils::scale_xy(node.dx_partion + node.x_partion, node.dy_partion + node.y_partion, map.map_bounds(), bounds, boarder);
 
-    let (bx, by) = map_utils::scale_xy(root_node.back_bbox.x, root_node.back_bbox.y,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (bw, bh) = map_utils::scale_xy(root_node.back_bbox.w, root_node.back_bbox.h,  map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
+            canvas.rectangle(fx, fy, fw, fh, Color::GREEN).unwrap();
+            canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
 
-    //let bw = bw - bx;
-    //let bh = bh - by;
+            canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
+        }
+    }
+}
 
-    let (p1x, p1y) = map_utils::scale_xy(root_node.x_partion, root_node.y_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-    let (p2x, p2y) = map_utils::scale_xy(root_node.x_partion + root_node.dx_partion, root_node.y_partion + root_node.dy_partion, map.map_bounds(), (manager.screen_width(), manager.screen_height()), 30);
-
-    canvas.rectangle(fx, fy, fh, fw, Color::GREEN).unwrap();
-    canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
-    
-    canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
+fn get_bounding_box(bbox: &wad::BoundingBox, map: &wad::Map, bounds: (i16, i16), boarder: i16) -> ((i16, i16), ((i16, i16))) {
+    (
+        map_utils::scale_xy(bbox.x, bbox.y,  map.map_bounds(), bounds, 30),
+        map_utils::scale_xy(bbox.w, bbox.h,  map.map_bounds(), bounds, 30)
+    )
 }
 
 fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {

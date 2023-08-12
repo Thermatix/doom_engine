@@ -307,8 +307,8 @@ pub struct Node {
     pub dy_partion: i16, 
     pub front_bbox: BoundingBox,
     pub back_bbox: BoundingBox,
-    pub right_child: i16,
-    pub left_child: i16,
+    pub front_child_id: i16,
+    pub back_child_id: i16,
 }
 
 
