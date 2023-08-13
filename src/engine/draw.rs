@@ -3,10 +3,20 @@ use std::hash::Hash;
 use std::sync::OnceLock;
 
 use super::*;
+//use super::bsp::NodeType;
 use sdl2::gfx::primitives::DrawRenderer;
 
 pub static mut META: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
+pub static mut SEG_COLOURS: OnceLock<HashMap<i16, Color>> = OnceLock::new();
 
+
+// Not calling this colours offends me :(
+pub fn colors() -> &'static mut HashMap<i16, Color> {
+    unsafe {
+        SEG_COLOURS.get_or_init(|| HashMap::new());
+        SEG_COLOURS.get_mut().unwrap()
+    }
+}
 
 pub fn meta() -> &'static HashMap<&'static str, usize> {
     unsafe {
@@ -153,28 +163,26 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
 
     let map = &context.current_map;
     let player = &context.player;
-    let bsp = &context.bsp;
+    //let bsp = &context.bsp;
 
     let bounds = (manager.screen_width(), manager.screen_height());
     let boarder: i16 = 30;
 
-    for node_or_leaf in bsp.traverse((player.x, player.y)) {
-        if let bsp::NodeType::Node(node) = node_or_leaf {
-            let ((fx, fy), (fw, fh)) = get_bounding_box(&node.front_bbox, &map,bounds, boarder);
-            let ((bx, by), (bw, bh)) = get_bounding_box(&node.back_bbox, &map,bounds, boarder);
+    for node in map.traverse_bsp((player.x, player.y)) {
+        let ((fx, fy), (fw, fh)) = get_bounding_box(&node.front_bbox, &map,bounds, boarder);
+        let ((bx, by), (bw, bh)) = get_bounding_box(&node.back_bbox, &map,bounds, boarder);
 
-            let (p1x, p1y) = map_utils::scale_xy(node.x_partion, node.y_partion, map.map_bounds(), bounds, boarder);
-            let (p2x, p2y) = map_utils::scale_xy(node.dx_partion + node.x_partion, node.dy_partion + node.y_partion, map.map_bounds(), bounds, boarder);
+        let (p1x, p1y) = map_utils::scale_xy(node.x_partion, node.y_partion, map.map_bounds(), bounds, boarder);
+        let (p2x, p2y) = map_utils::scale_xy(node.dx_partion + node.x_partion, node.dy_partion + node.y_partion, map.map_bounds(), bounds, boarder);
 
-            canvas.rectangle(fx, fy, fw, fh, Color::GREEN).unwrap();
-            canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
+        canvas.rectangle(fx, fy, fw, fh, Color::GREEN).unwrap();
+        canvas.rectangle(bx, by, bw, bh, Color::RED).unwrap();
 
-            canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
-        }
+        canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
     }
 }
 
-fn get_bounding_box(bbox: &wad::BoundingBox, map: &wad::Map, bounds: (i16, i16), boarder: i16) -> ((i16, i16), ((i16, i16))) {
+fn get_bounding_box(bbox: &wad::BoundingBox, map: &wad::Map, bounds: (i16, i16), boarder: i16) -> ((i16, i16), (i16, i16)) {
     (
         map_utils::scale_xy(bbox.x, bbox.y,  map.map_bounds(), bounds, 30),
         map_utils::scale_xy(bbox.w, bbox.h,  map.map_bounds(), bounds, 30)
@@ -208,6 +216,11 @@ fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, m
     if meta()["don't_draw_lines"] >= 1 { return };
 
     let map = &context.current_map;
+    let player = &context.player;
+    //let bsp = &context.bsp;
+
+    let bounds = (manager.screen_width(), manager.screen_height());
+    let boarder: i16 = 30;
 
     let points = map_utils::scale_map_points(
         map.map_points(),
@@ -216,11 +229,37 @@ fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, m
         30
     );
 
-    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)) {
-        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, Color::GREY).unwrap();
+
+    let nodes: Vec<wad::Node> = map.traverse_bsp((player.x, player.y)).collect();
+
+    let segs_by_sub_sector = map.segs_to_draw(&nodes, (player.x, player.y));
+
+    for segs_to_draw in segs_by_sub_sector {
+        for segment in segs_to_draw.segments {
+            draw2d_utils::draw_seg(&canvas, &segment, segs_to_draw.sub_sector_id, &points);
+        }
+    }
+    set_meta("don't_draw_lines", 1, true);
+}
+
+mod draw2d_utils {
+    use super::*;
+    use rand::{self, Rng};
+
+    pub fn draw_seg(canvas: &Canvas<Window>, seg: &wad::Segment, subsector_id: i16, vertexes: &wad::Points) {
+        let p1 = vertexes[seg.start_vertext_id as usize];
+        let p2 = vertexes[seg.end_verext_id as usize];
+        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, rand_colour(subsector_id)).unwrap();
     }
 
-    set_meta("don't_draw_lines", 1, true);
+    pub fn rand_colour(subsector_id: i16) -> sdl2::pixels::Color {
+        *colors().entry(subsector_id).or_insert_with(|| { 
+            let seed: Vec<u8> = format!("{:032}", subsector_id).chars().into_iter().map(|c| c as u8).collect();
+            let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(seed[0..32].try_into().unwrap());
+            let mut rand_color = || rng.gen_range::<u8, core::ops::RangeInclusive<u8>>(100..=255);
+            Color { r: rand_color(), g: rand_color(), b: rand_color(), a:255 }
+        })
+    }
 }
 
 mod map_utils {

@@ -19,7 +19,7 @@ impl Tree {
         let nodes = map.nodes.clone();
         let sub_sectors = map.sub_sectors.clone();
         let segments = map.segments.clone();
-        let root_node_id = (nodes.lump_data_deserialized().len() - 1) as i16;
+        let root_node_id = (nodes.data.len() - 1) as i16;
         Self {
             nodes,
             sub_sectors,
@@ -31,23 +31,24 @@ impl Tree {
         todo!();
     }
 
-    pub fn traverse(&self, thing_pos: (i16, i16)) -> TreeTraverseIterator {
+    pub fn traverse<Returned>(&self, thing_pos: (i16, i16)) -> TreeTraverseIterator<Returned> {
         TreeTraverseIterator::new(&self, self.root_node_id, thing_pos)
     }
 
-    pub fn traverse_from(&self, node_id: i16, thing_pos: (i16, i16)) -> TreeTraverseIterator {
+    pub fn traverse_from<Returned>(&self, node_id: i16, thing_pos: (i16, i16)) -> TreeTraverseIterator<Returned> {
         TreeTraverseIterator::new(&self, node_id, thing_pos)
     }
 }
 
-pub struct TreeTraverseIterator<'t> {
+pub struct TreeTraverseIterator<'t, Returned=Node> {
     tree: &'t Tree,
     thing_pos: (i16, i16),
     current_node: i16,
     finished: bool,
+    _return: PhantomData<Returned>
 }
 
-impl<'t> TreeTraverseIterator<'t> {
+impl<'t, Returned> TreeTraverseIterator<'t, Returned> {
     const SUB_SECTOR_IDENTIFIER: u16 = 0x8000;
 
     pub fn new(tree: &'t Tree, current_node: i16, thing_pos: (i16, i16)) -> Self {
@@ -56,6 +57,7 @@ impl<'t> TreeTraverseIterator<'t> {
             thing_pos,
             current_node,
             finished: false,
+            _return: PhantomData::default()
         }
     }
 
@@ -66,7 +68,27 @@ impl<'t> TreeTraverseIterator<'t> {
     }
 }
 
-impl<'t> Iterator for TreeTraverseIterator<'t> {
+impl<'t> Iterator for TreeTraverseIterator<'t, Node> {
+    type Item = Node;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.finished { return None};
+
+        if self.current_node as u16 >= Self::SUB_SECTOR_IDENTIFIER {
+            None
+        } else {
+            let node: &wad::Node = self.tree.nodes.lump_data_deserialized().get(self.current_node  as usize).unwrap().try_into().unwrap();
+            self.current_node = if self.is_in_back_side(node, self.thing_pos) {
+                node.back_child_id
+            } else {
+                node.front_child_id
+            };
+            Some(node.clone())
+        }
+    }
+}
+
+impl<'t> Iterator for TreeTraverseIterator<'t, NodeType> {
     type Item = NodeType;
 
     fn next(&mut self) -> Option<Self::Item> {

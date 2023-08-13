@@ -1,6 +1,6 @@
 use super::*;
 
-use wad::{DeserializeLump, ThingFlags, Thing};
+use wad::{ThingFlags, Thing};
 
 
 #[derive(Debug)]

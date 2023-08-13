@@ -12,5 +12,7 @@ binrw = "0.11.2"
 clap = { version = "4.3.19", features = ["derive"] }
 modular-bitfield = "0.11.2"
 ordered-float = "3.7.0"
+rand = { version = "0.8.5", features = ["small_rng"] }
+regex = "1.9.3"
 sdl2 = { version = "0.35.2", features = ["bundled", "gfx"] }
 serde = { version = "1.0.177", features = ["derive"] }

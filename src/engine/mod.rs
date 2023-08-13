@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-mod bsp;
+//mod bsp;
 mod player;
 mod draw;
 mod errors;
@@ -54,7 +54,7 @@ pub struct Engine<State, Draw = draw::Draw2D>
 #[derive(Debug)]
 pub struct Context {
     pub current_map: wad::Map,
-    pub bsp: bsp::Tree,
+//    pub bsp: bsp::Tree,
     pub player: Player,
 }
 
@@ -110,16 +110,16 @@ impl<'e> Engine<Init> {
 impl<'e> Engine<MainMenu> {
     pub fn start(mut self, wad_name: &str, map_name: &str) -> CliResult<'e, Engine<InGame>> {
         let map = self.reader.get_map(wad_name, map_name).unwrap();
-        let player_thing: wad::Thing = map.things.lump_data_deserialized()[0].clone().into();
+        let player_thing: wad::Thing = map.things[0].clone().into();
 
         let player = Player::new(player_thing);
      
-        let bsp = bsp::Tree::new(&map);
+//        let bsp = bsp::Tree::new(&map);
 
         let mut context = Context {
             current_map: map,
             player: player,
-            bsp: bsp
+//            bsp: bsp
         };
         Ok(Engine {
             reader: self.reader,

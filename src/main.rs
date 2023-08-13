@@ -16,8 +16,6 @@ use macros::*;
 
 
 use engine::GameLoop;
-use wad::LumpData;
-
 
 fn main() -> errors::CliResult<'static> {
     let args = cli::args();
