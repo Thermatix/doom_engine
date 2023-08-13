@@ -82,7 +82,9 @@ impl Lump {
         where T: BinRead, Vec<T>: BinRead {
         let mut cursor = Cursor::new(raw_data);
         cursor.seek(SeekFrom::Start(self.offset as u64));
-        <Vec<T> as BinRead>::read_le_args(&mut cursor, args! { count: self.count }).unwrap()
+        let result = <Vec<T> as BinRead>::read_le_args(&mut cursor, args! { count: self.count }).unwrap();
+        self.post_process();
+        result
     }
 
     fn lump_count(kind: &LumpKind, size: i32) -> usize {
@@ -102,6 +104,14 @@ impl Lump {
                 _ => 1,
             } as usize)
         }
+    }
+
+    fn post_process(&self) {
+        match self.kind {
+            LumpKind::Sectors => lump_meta().insert("SECTOR_COUNT", self.count),
+            LumpKind::Rejects => lump_meta().insert("SECTOR_COUNT", 0),
+            _ => None, 
+        };
     }
 }
 
@@ -187,11 +197,6 @@ fn bytes_to_string(bytes: Vec<u8>) -> String {
     bytes.iter().map(|b| char::from(*b)).collect()
 }
 
-trait AfterParse {
-    fn after_parse(lump: &Lump) {}
-}
-
-
 // #[derive(Debug, BinRead, PartialEq, Eq)]
 // #[br(little, import { count: usize , name: &str})]
 // pub enum DeserializeLump {
@@ -234,8 +239,6 @@ pub struct Thing {
     pub id: usize,
 }
 
-impl AfterParse for Thing {}
-
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little, import { count: usize })]
 pub struct LineDef {
@@ -249,8 +252,6 @@ pub struct LineDef {
     #[br(calc = count)]
     pub id: usize,
 }
-
-impl AfterParse for LineDef {}
 
 #[derive(Debug, BinRead, PartialEq, Eq)]
 #[br(little, import { count: usize })]
@@ -268,8 +269,6 @@ pub struct SideDef {
     pub id: usize,
 }
 
-impl AfterParse for SideDef {}
-
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little, import { count: usize })]
 pub struct Vertex {
@@ -278,8 +277,6 @@ pub struct Vertex {
     #[br(calc = count)]
     pub id: usize,
 }
-
-impl AfterParse for Vertex {}
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little, import { count: usize })]
@@ -293,8 +290,6 @@ pub struct Segment {
     #[br(calc = count)]
     pub id: usize,
 }
-
-impl AfterParse for Segment {}
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little, import { count: usize })]
@@ -311,8 +306,6 @@ impl SubSector {
         (self.first_segments_id as usize)..=(self.segments_count as usize)
     }
 }
-
-impl AfterParse for SubSector {}
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little, import { count: usize })]
@@ -343,8 +336,6 @@ impl Node {
 
 }
 
-impl AfterParse for Node {}
-
 #[derive(Debug, BinRead, PartialEq, Eq)]
 #[br(little, import { count: usize })]
 pub struct Sector {
@@ -360,13 +351,6 @@ pub struct Sector {
     #[br(calc = count)]
     pub id: usize,
 }
-
-impl AfterParse for Sector {
-    fn after_parse(lump: &Lump) {
-        lump_meta().insert("SECTOR_COUNT", lump.count);
-    }
-}
-
 #[derive(Debug, BinRead, PartialEq, Eq, Clone)]
 #[br(little, import { count: usize })]
 pub struct Reject {
@@ -384,14 +368,6 @@ impl Reject {
     }
 }
 
-impl AfterParse for Reject {
-
-    fn after_parse(_lump: &Lump) {
-        lump_meta().insert("SECTOR_COUNT", 0);
-    }
-
-}
-
 #[derive(Debug, BinRead, PartialEq, Eq)]
 #[br(little, import { count: usize })]
 pub struct BlockMap {
@@ -404,8 +380,6 @@ pub struct BlockMap {
     //#[br(count = (columns as usize * rows as usize))]
     //pub offsets: Vec<i16>
 }
-
-impl AfterParse for BlockMap {}
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 pub enum SegDirection {
