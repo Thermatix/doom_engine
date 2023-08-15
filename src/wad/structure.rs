@@ -70,6 +70,7 @@ impl std::convert::From<(&Vec<Lump>, &RawData, Offset)> for Map {
     }
 }
 
+#[derive(Debug)]
 pub struct SegsToDraw {
     pub sub_sector_id: u16,
     pub segments: Vec<Segment>
@@ -134,34 +135,35 @@ impl Map {
     }
     
     pub fn segs_from_nodes(&self, nodes: &Vec<Node>, player_pos: (i16, i16)) -> Vec<SegsToDraw> {
-        nodes.iter().rev().fold( (None, Vec::new()), |(previous_node, segments): (Option<&Node>, Vec<SegsToDraw>), node: &Node| {
-            println!("{node:?}");
-            (
-                Some(node),
-                self.recurse_node_from_list(segments, node, previous_node, player_pos)
-            )
+        nodes.iter().rev().fold( (Vec::new(), Vec::new()), |(visited, segments): (Vec<u16>, Vec<SegsToDraw>), node: &Node| {
+            self.recurse_node_from_list(segments, node, visited, player_pos)
         }).1
     }
 
     #[inline]
-    fn recurse_node_from_list(&self, mut segments: Vec<SegsToDraw>, node: &Node, previous_node: Option<&Node>, player_pos: (i16, i16)) -> Vec<SegsToDraw> {
+    fn recurse_node_from_list(&self, mut segments: Vec<SegsToDraw>, node: &Node, mut visited: Vec<u16>, player_pos: (i16, i16)) -> (Vec<u16>, Vec<SegsToDraw>) {
         let (b_is_ssector, f_is_ssector) = node.children_are_sub_sectors();
         if node.is_in_back_side(player_pos) {
-            if previous_node == None || previous_node.is_some_and(|pn| node.back_child_id != pn.id) {
+            if !visited.contains(&node.back_child_id) {
+                visited.push(node.back_child_id);
                 self.push_or_traverse_child(&mut segments, b_is_ssector, node.back_child_id, player_pos);
             }
-            if previous_node == None || previous_node.is_some_and(|pn| node.front_child_id != pn.id) {
+            if !visited.contains(&node.front_child_id) {
+                visited.push(node.front_child_id);
                 self.push_or_traverse_child(&mut segments, f_is_ssector, node.front_child_id, player_pos);   
             }
         } else {
-            if  previous_node == None || previous_node.is_some_and(|pn| node.front_child_id != pn.id) {
+            if !visited.contains(&node.front_child_id) {
+                visited.push(node.front_child_id);
                 self.push_or_traverse_child(&mut segments, f_is_ssector, node.front_child_id, player_pos);   
             }
-            if  previous_node == None || previous_node.is_some_and(|pn| node.back_child_id != pn.id) {
+            if !visited.contains(&node.back_child_id) {
+                visited.push(node.back_child_id);
                 self.push_or_traverse_child(&mut segments, b_is_ssector, node.back_child_id, player_pos);
             }
         }
-        segments
+        visited.push(node.id);
+        (visited, segments)
     }
 
     fn push_or_traverse_child(&self, segments: &mut Vec<SegsToDraw>, is_ssector: bool, child_id: u16, player_pos: (i16, i16)) {

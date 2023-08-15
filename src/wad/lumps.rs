@@ -270,7 +270,7 @@ pub struct Segment {
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
 #[br(little)]
 pub struct SubSector {
-    pub segments_count: i16,
+    pub segments_count: u16,
     pub first_segments_id: u16,
     #[br(calc = get_and_incriment_id())]
     pub id: u16,
@@ -280,9 +280,8 @@ impl SubSector {
     pub const SUB_SECTOR_IDENTIFIER: u16 = 0x8000;
     pub const IDENTIFIER_BITMASK: u16 = 0b0111111111111111;
 
-    pub fn to_range(&self) -> core::ops::RangeInclusive<usize> {
-        // Might need to be non inclusive
-        (self.first_segments_id as usize)..=(self.segments_count as usize)
+    pub fn to_range(&self) -> core::ops::Range<usize> {
+        (self.first_segments_id as usize)..((self.first_segments_id + self.segments_count) as usize)
     }
 }
 
