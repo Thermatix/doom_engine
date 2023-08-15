@@ -181,6 +181,9 @@ impl GameLoopStages for Engine<InGameMenu>  {
     }
 }
 
+
+/// Blanket implimentation for any types that impliment `GameLoopStages`,
+/// Provides Main process loop and events (and possibly other common processes)
 impl<State> GameLoop for Engine<State> where Engine<State>: GameLoopStages {
 
     fn main_loop(&mut self) {

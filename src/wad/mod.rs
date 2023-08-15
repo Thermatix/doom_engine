@@ -92,23 +92,16 @@ impl Reader {
 
     }
 
+    /// Return a list of all MapMarker lumps within the given WAD directory
     pub fn get_map_list<'a, 'b, 'c>(&'a self, wad_name: &'b str) -> CliResult<'c, Vec<&Lump>> {
-        let lumps = &self.wads.get(wad_name)
-            .ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?
-            .meta.lumps;
-        Ok(lumps.iter().filter(|l| l.kind == lumps::LumpKind::MapMarker ).collect())
+          Ok(self.lumps_for(wad_name)?.iter().filter(|l| l.kind == lumps::LumpKind::MapMarker ).collect())
     }
-
+    /// Return all Lumps for a given wad
     pub fn lumps_for<'a, 'b, 'c>(&'a self, wad_name: &'b str) -> CliResult<'c, &Vec<Lump>> {
         Ok(&self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?.meta.lumps)
     }
 
-    fn read_bytes(file: &mut fs::File, buffer: &mut [u8],  offset: usize, num_bytes: usize) -> Result<(), std::io::Error>{
-        file.seek(SeekFrom::Start(offset as u64))?;
-        let _ = file.read_exact(buffer);
-        Ok(())
-    }
-
+    /// Return a Map struct for a given WAD & map_name
     pub fn get_map<'a, 'b, 'c>(&'a self, wad_name: &'b str, map_name: &'b str) -> CliResult<'c, Map>  {
         let wad = &self.wads.get(wad_name).ok_or_else(|| Error::Reader(format!("'{wad_name}' not found")))?;
         let (i, _) = wad.meta.lumps.iter().enumerate().find(|(_, lump)| lump.name.starts_with(map_name))
