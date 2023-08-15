@@ -6,6 +6,7 @@ mod draw;
 mod errors;
 
 use std::marker::PhantomData;
+use std::{thread, time};
 
 use crate::cli;
 use crate::errors::{CliResult,Errors};
@@ -54,19 +55,9 @@ pub struct Engine<State, Draw = draw::Draw2D>
 #[derive(Debug)]
 pub struct Context {
     pub current_map: wad::Map,
-//    pub bsp: bsp::Tree,
     pub player: Player,
 }
 
-// impl Context {
-
-//     pub fn new() -> Self {
-//         Self {
-//             current_map: None,
-//             player: None,
-//         }
-//     }
-// }
 
 impl Engine<Init> {
     pub fn new(args: &cli::Args) -> CliResult<Self> {
@@ -76,7 +67,7 @@ impl Engine<Init> {
         let video = sdl_context.video().unwrap();
         let window = video.window("Map Display", args.screen_width as u32, args.screen_height as u32)
                                 .build().unwrap();
-        let mut canvas : Canvas<Window> = window.into_canvas()
+        let canvas : Canvas<Window> = window.into_canvas()
                                                 .present_vsync() //<this means the screen cannot
                                                 // render faster than your display rate (usually 60Hz or 144Hz)
                                                 .build().unwrap();
@@ -94,8 +85,8 @@ impl Engine<Init> {
     }
 }
 
-impl<'e> Engine<Init> {
-    pub fn set_up(mut self) -> CliResult<'e,Engine<MainMenu>> {
+impl Engine<Init> {
+    pub fn set_up(self) -> CliResult<'static, Engine<MainMenu>> {
         Ok(Engine {
             reader: self.reader,
             context: self.context,
@@ -107,20 +98,18 @@ impl<'e> Engine<Init> {
         })
     }
 }
-impl<'e> Engine<MainMenu> {
-    pub fn start(mut self, wad_name: &str, map_name: &str) -> CliResult<'e, Engine<InGame>> {
+impl Engine<MainMenu> {
+    pub fn start(self, wad_name: &str, map_name: &str) -> CliResult<'static, Engine<InGame>> {
         let map = self.reader.get_map(wad_name, map_name).unwrap();
         let player_thing: wad::Thing = map.things[0].clone().into();
 
         let player = Player::new(player_thing);
-     
-//        let bsp = bsp::Tree::new(&map);
 
-        let mut context = Context {
+        let context = Context {
             current_map: map,
             player: player,
-//            bsp: bsp
         };
+
         Ok(Engine {
             reader: self.reader,
             context: Some(context),
@@ -133,8 +122,8 @@ impl<'e> Engine<MainMenu> {
     }
 }
 
-impl<'e> Engine<InGame> {
-    pub fn pause(mut self) -> CliResult<'e, Engine<InGameMenu>> {
+impl Engine<InGame> {
+    pub fn pause(self) -> CliResult<'static, Engine<InGameMenu>> {
         // use std::{thread, time};
         // let one_second = time::Duration::from_secs(1);
         // thread::sleep(one_second);
@@ -197,6 +186,7 @@ impl<State> GameLoop for Engine<State> where Engine<State>: GameLoopStages {
 
     fn main_loop(&mut self) {
         let mut event_pump = self.sdl_context.event_pump().unwrap();
+        let ten_millis = time::Duration::from_millis(10);
         'running: loop {
             for event in event_pump.poll_iter() {
                 if let Some(action) = self.input(event) {
@@ -206,7 +196,8 @@ impl<State> GameLoop for Engine<State> where Engine<State>: GameLoopStages {
                 }
                 self.update();
                 self.render();
-                &self.canvas.present(); 
+                self.canvas.present(); 
+                thread::sleep(ten_millis);
             }
         }
     }  

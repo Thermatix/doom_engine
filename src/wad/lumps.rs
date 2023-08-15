@@ -11,33 +11,6 @@ use binrw::{binrw, args, NamedArgs};
 use regex::Regex;
 pub use binrw::BinRead;
 
-const LUMPKINDMATCHER: Regex = Regex::new(
-r#"(?x)
-(PLAYPAL) |
-(COLORMAP) |
-(ENDOOM)|
-(DEMO)|
-(THINGS)|
-(LINEDEFS)|
-(SIDEDEFS)|
-(VERTEXES)|
-(SEGS)|
-(SSECTORS)|
-(NODES)|
-(SECTORS)|
-(REJECT)|
-(BLOCKMAP)|
-(TEXTURE)|
-(PNAMES)|
-(GENMIDI)|
-(DMXGUS)|
-(DP)|
-(DS)|
-(D_)|
-(_START)|
-(_END)\s+(\d+)
-"#).unwrap();
-
 #[derive(Debug)]
 pub enum Error {
     Unwraping(String, String),
@@ -78,10 +51,10 @@ pub struct Lump {
 }
 
 impl Lump {
-    pub fn deserialize<T>(&self, raw_data: &super::RawData) -> Vec<T>
-        where T: BinRead, Vec<T>: BinRead {
+    pub fn deserialize<T:for<'a> BinRead<Args<'a>=()> + 'static>(&self, raw_data: &super::RawData) -> Vec<T> {
         let mut cursor = Cursor::new(raw_data);
-        cursor.seek(SeekFrom::Start(self.offset as u64));
+        cursor.seek(SeekFrom::Start(self.offset as u64)).unwrap();
+        
         let result = <Vec<T> as BinRead>::read_le_args(&mut cursor, args! { count: self.count }).unwrap();
         self.post_process();
         result
@@ -112,7 +85,14 @@ impl Lump {
             LumpKind::Rejects => lump_meta().insert("SECTOR_COUNT", 0),
             _ => None, 
         };
+        lump_meta().insert("ID", 0);
     }
+}
+
+fn get_and_incriment_id() -> u16 {
+    let id = lump_meta().entry("ID").or_insert(0); 
+    lump_meta().insert("ID", *id + 1);
+    *id as u16
 }
 
 #[derive(Debug, PartialEq, PartialOrd, Ord, Eq)]
@@ -148,7 +128,33 @@ pub enum LumpKind {
 
 impl From<(&String, i32)> for LumpKind {
     fn from((name, size): (&String, i32)) -> Self {
-        let captures = LUMPKINDMATCHER.captures(name).map(|captures| {
+        let lump_kind_matcher = Regex::new(
+            r#"(?x)
+            (PLAYPAL) |
+            (COLORMAP) |
+            (ENDOOM)|
+            (DEMO)|
+            (THINGS)|
+            (LINEDEFS)|
+            (SIDEDEFS)|
+            (VERTEXES)|
+            (SEGS)|
+            (SSECTORS)|
+            (NODES)|
+            (SECTORS)|
+            (REJECT)|
+            (BLOCKMAP)|
+            (TEXTURE)|
+            (PNAMES)|
+            (GENMIDI)|
+            (DMXGUS)|
+            (DP)|
+            (DS)|
+            (D_)|
+            (_START)|
+            (_END)\s+(\d+)
+            "#).unwrap();
+        let captures = lump_kind_matcher.captures(name).map(|captures| {
             captures
                 .iter() // All the captured groups
                 .skip(1) // Skipping the complete match
@@ -190,71 +196,41 @@ fn reject_count() -> usize {
     let lump_meta = lump_meta();
     let sec_count = lump_meta.get("SECTOR_COUNT").unwrap();
     (sec_count * sec_count) / 8
-
 }
 
 fn bytes_to_string(bytes: Vec<u8>) -> String {
     bytes.iter().map(|b| char::from(*b)).collect()
 }
 
-// #[derive(Debug, BinRead, PartialEq, Eq)]
-// #[br(little, import { count: usize , name: &str})]
-// pub enum DeserializeLump {
-//     #[br(pre_assert(name.starts_with("THING")))]  Thing(#[br(args { count: count } )] Thing),
-//     #[br(pre_assert(name.starts_with("LINEDEF")))] LineDef(#[br(args { count: count } )] LineDef),
-//     #[br(pre_assert(name.starts_with("SIDEDEF")))] SideDef(#[br(args { count: count } )] SideDef),
-//     #[br(pre_assert(name.starts_with("VERTEX")))] Vertex(#[br(args { count: count } )] Vertex),
-//     #[br(pre_assert(name.starts_with("SEGS")))] Segment(#[br(args { count: count } )] Segment),
-//     #[br(pre_assert(name.starts_with("SSECTOR")))] SubSector(#[br(args { count: count } )] SubSector),
-//     #[br(pre_assert(name.starts_with("NODE")))] Node(#[br(args { count: count } )] Node),
-//     #[br(pre_assert(name.starts_with("SECTOR")))] Sector(#[br(args { count: count } )] Sector),
-//     #[br(pre_assert(name.starts_with("REJECT")))] Reject(#[br(args { count: count } )] Reject) ,
-//     #[br(pre_assert(name.starts_with("BLOCKMAP")))] BlockMap(#[br(args { count: count } )] BlockMap),
-//     //#[default] N
-// }
-
-// try_outer_to_inner!(DeserializeLump, Thing, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, LineDef, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, SideDef, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, Vertex, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, Segment, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, SubSector, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, Node, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, Sector, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, Reject, Error, Unwraping);
-// try_outer_to_inner!(DeserializeLump, BlockMap, Error, Unwraping);
-
-
-//impl<T:BinRead> AfterParse for T {}
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Thing {
     pub x: i16,
     pub y: i16,
     pub angle_facing: i16,
     pub doomed_thing_type: i16,
     pub flags: ThingFlags,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct LineDef {
-    pub start_vertex_id: i16,
-    pub end_vertex_id: i16,
+    pub start_vertex_id: u16,
+    pub end_vertex_id: u16,
     pub flags: LineDefFlags,
     pub special_type: i16,
     pub tag: i16,
     pub front: i16,
     pub back: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct SideDef {
     pub x_offset: i16,
     pub y_offset: i16,
@@ -265,42 +241,45 @@ pub struct SideDef {
     #[br(count = 8, map = |x: Vec<u8>| bytes_to_string(x))]
     pub name_of_middle: String,
     pub sector_this_sidedef_faces: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Vertex {
     pub x: i16,
     pub y: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Segment {
-    pub start_vertext_id: i16,
-    pub end_verext_id: i16,
+    pub start_vertext_id: u16,
+    pub end_verext_id: u16,
     pub angle: i16, // full circle is -32768 to 32767.
-    pub line_def_id: i16,
+    pub line_def_id: u16,
     pub direction: SegDirection,
     pub offset: i16, // distance along linedef to start of segments 
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct SubSector {
     pub segments_count: i16,
-    pub first_segments_id: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    pub first_segments_id: u16,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 impl SubSector {
+    pub const SUB_SECTOR_IDENTIFIER: u16 = 0x8000;
+    pub const IDENTIFIER_BITMASK: u16 = 0b0111111111111111;
+
     pub fn to_range(&self) -> core::ops::RangeInclusive<usize> {
         // Might need to be non inclusive
         (self.first_segments_id as usize)..=(self.segments_count as usize)
@@ -308,7 +287,7 @@ impl SubSector {
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Node {
     pub x_partion: i16,
     pub y_partion: i16,
@@ -316,16 +295,19 @@ pub struct Node {
     pub dy_partion: i16, 
     pub front_bbox: BoundingBox,
     pub back_bbox: BoundingBox,
-    pub front_child_id: i16,
-    pub back_child_id: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    pub front_child_id: u16,
+    pub back_child_id: u16,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 impl Node {
-    const SUB_SECTOR_IDENTIFIER: u16 = 0x8000;
-    pub fn child_is_sub_sector(&self, child_id: i16) -> bool {
-        child_id as u16 >= Self::SUB_SECTOR_IDENTIFIER
+
+    pub fn children_are_sub_sectors(&self) -> (bool, bool) {
+        (
+            self.back_child_id  >= SubSector::SUB_SECTOR_IDENTIFIER,
+            self.front_child_id >= SubSector::SUB_SECTOR_IDENTIFIER,
+        )
     }
 
     pub fn is_in_back_side(&self, (player_x, player_y): (i16, i16)) -> bool {
@@ -337,7 +319,7 @@ impl Node {
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Sector {
     pub floor_height: i16,
     pub ceiling_height: i16,
@@ -348,16 +330,16 @@ pub struct Sector {
     pub light_level: i16,
     pub special_type: i16,
     pub tag: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 #[derive(Debug, BinRead, PartialEq, Eq, Clone)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct Reject {
     #[br(count = Self::reject_count())]
     pub table: Vec<u8>,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
 }
 
 impl Reject {
@@ -369,22 +351,23 @@ impl Reject {
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq)]
-#[br(little, import { count: usize })]
+#[br(little)]
 pub struct BlockMap {
     pub x_grid_origin: i16,
     pub y_grid_origin: i16,
     pub columns: i16,
     pub rows: i16,
-    #[br(calc = count)]
-    pub id: usize,
+    #[br(calc = get_and_incriment_id())]
+    pub id: u16,
     //#[br(count = (columns as usize * rows as usize))]
     //pub offsets: Vec<i16>
 }
 
 #[derive(Debug, BinRead, PartialEq, Eq, Copy, Clone)]
+#[br(little,  repr = i16)]
 pub enum SegDirection {
-    #[br(magic = b"0")] SameAsLineDef,
-    #[br(magic = b"1")] OppositOfLineDef,
+    SameAsLineDef = 0,
+    OppositOfLineDef = 1,
 }
 
 // top, bottom, left and righ

@@ -49,7 +49,6 @@ pub struct TreeTraverseIterator<'t, Returned=Node> {
 }
 
 impl<'t, Returned> TreeTraverseIterator<'t, Returned> {
-    const SUB_SECTOR_IDENTIFIER: u16 = 0x8000;
 
     pub fn new(tree: &'t Tree, current_node: i16, thing_pos: (i16, i16)) -> Self {
         Self {
@@ -74,7 +73,7 @@ impl<'t> Iterator for TreeTraverseIterator<'t, Node> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished { return None};
 
-        if self.current_node as u16 >= Self::SUB_SECTOR_IDENTIFIER {
+        if self.current_node as u16 >= SubSector::SUB_SECTOR_IDENTIFIER {
             None
         } else {
             let node: &wad::Node = self.tree.nodes.lump_data_deserialized().get(self.current_node  as usize).unwrap().try_into().unwrap();
@@ -94,7 +93,7 @@ impl<'t> Iterator for TreeTraverseIterator<'t, NodeType> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.finished { return None};
 
-        if self.current_node as u16 >= Self::SUB_SECTOR_IDENTIFIER {
+        if self.current_node as u16 >= SubSector::SUB_SECTOR_IDENTIFIER {
             self.finished = true;
             let leaf: &wad::SubSector = self.tree.sub_sectors.lump_data_deserialized().get((self.current_node as u16 - Self::SUB_SECTOR_IDENTIFIER) as usize).unwrap().try_into().unwrap();
             Some(NodeType::SubSector(leaf.clone()))

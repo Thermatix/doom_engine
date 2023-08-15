@@ -1,3 +1,4 @@
+use std::cell::{RefCell, Ref, RefMut};
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::sync::OnceLock;
@@ -6,76 +7,55 @@ use super::*;
 //use super::bsp::NodeType;
 use sdl2::gfx::primitives::DrawRenderer;
 
-pub static mut META: OnceLock<HashMap<&'static str, usize>> = OnceLock::new();
-pub static mut SEG_COLOURS: OnceLock<HashMap<i16, Color>> = OnceLock::new();
+pub static mut SEG_COLOURS: OnceLock<HashMap<u16, Color>> = OnceLock::new();
 
-
-// Not calling this colours offends me :(
-pub fn colors() -> &'static mut HashMap<i16, Color> {
-    unsafe {
-        SEG_COLOURS.get_or_init(|| HashMap::new());
-        SEG_COLOURS.get_mut().unwrap()
-    }
-}
-
-pub fn meta() -> &'static HashMap<&'static str, usize> {
-    unsafe {
-        META.get_or_init(|| HashMap::new())
-    }
-}
-
-
-pub fn get_mutmeta() -> &'static mut HashMap<&'static str, usize> {
-    unsafe {
-        META.get_or_init(|| HashMap::new() );
-        META.get_mut().unwrap()
-    }
-}
-
-pub fn set_meta(k: &'static str, v: usize, ovewrite: bool) {
-    let meta = get_mutmeta();
-
-    if ovewrite || meta.get(k) == None {
-        meta.insert(k, v);
-    }
-
-
-}
-
-
-
+pub type FlagsValue = bool;
+pub type Flags<'a> = Ref<'a, HashMap<String, FlagsValue>>;
+pub type MutFlags<'a> = RefMut<'a, HashMap<String, FlagsValue>>;
+pub type Colours<'a> = Ref<'a, HashMap<u16, Color>>;
+pub type MutColours<'a> = RefMut<'a, HashMap<u16, Color>>;
 pub type Layers<Draw> = Vec<Layer<Draw>>;
 
 pub struct Layer<M> where M: Manager {
     pub name: String,
-    pub draw_function: Box<dyn Fn(&mut Canvas<Window>, &Context, &M)>,
+    pub draw_function: Box<dyn for<'m, 'c> Fn(&'c mut Canvas<Window>, &'c Context, &'m M)>,
 }
 
 impl<M: Manager> Drawable for Layer<M> {
     type Manager = M;
-    fn draw(&self, canvas: &mut Canvas<Window>, context: &Context, manager: &Self::Manager) {
+    fn draw<'c, 'm>(&'m self, canvas: &'c mut Canvas<Window>, context: &'c Context, manager: &'m Self::Manager) {
         (&self.draw_function.as_ref())(canvas, context, manager);
     }
 
 }
 
-
 pub trait Drawable {
     type Manager;
-    fn draw(&self, canvas: &mut Canvas<Window>, context: &Context, manager: &Self::Manager); 
+    fn draw<'c, 'm>(&'m self, canvas: &'c mut Canvas<Window>, context: &'c Context, manager: &'m Self::Manager); 
 }
-
 
 pub trait Manager {
     fn screen_width(&self) -> i16;
     fn screen_height(&self) -> i16;
     fn draw_layers(&self, canvas: &mut Canvas<Window>, context: &Context);
+
 }
 
+trait FlagsData {
+    fn mut_meta(&self) -> MutFlags;
+    fn meta(&self) -> Flags;
+}
+
+trait ColoursStore {
+    fn mut_colours(&self) -> MutColours;
+    fn colours(&self) -> Colours;
+}
 pub struct Draw2D  {
     screen_width: i16,
     screen_height: i16,
     layers: Layers<Self>,
+    meta: RefCell<HashMap<String, FlagsValue>>,
+    colours: RefCell<HashMap<u16, Color>>,
 }
 
 impl Manager for Draw2D {
@@ -96,7 +76,25 @@ impl Manager for Draw2D {
     }
 }
 
+impl FlagsData for Draw2D {
+    fn mut_meta(&self) -> MutFlags{
+        self.meta.borrow_mut()
+    }
 
+    fn meta(&self) -> Flags {
+        self.meta.borrow()
+    }
+}
+
+impl ColoursStore for Draw2D {
+    fn mut_colours(&self) -> MutColours {
+        self.colours.borrow_mut()
+    }
+
+    fn colours(&self) -> Colours {
+        self.colours.borrow()
+    }
+}
 
 impl Draw2D {
     pub fn new( screen_width: i16, screen_height: i16) -> Self {
@@ -105,6 +103,8 @@ impl Draw2D {
             screen_width,
             screen_height,
             layers,
+            meta: RefCell::new(HashMap::new()),
+            colours: RefCell::new(HashMap::new()),
         };
 
         draw_2d.layers.push(
@@ -139,9 +139,7 @@ impl Draw2D {
     }
 }
 
-pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    if let Some(v) = meta().get("don't_draw_vertexes") { if *v == 0 { return } } else { return };
-    
+fn draw_player<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {    
     let player = &context.player;   
     let map = &context.current_map;
 
@@ -154,12 +152,11 @@ pub fn draw_player<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, 
     );
 
     canvas.filled_circle(scaled_pos.0, scaled_pos.1, 5, Color::GREEN).unwrap();
-    set_meta("player_is_drawn", 1, false);
 
 }
 
-fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    //if let Some(v) = meta().get("player_is_drawn") { if *v == 0 { return } } else { return };
+fn draw_map_bsp<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+    if manager.meta().get("don't_draw_bsp").is_some_and(|v| *v) { return };
 
     let map = &context.current_map;
     let player = &context.player;
@@ -180,18 +177,18 @@ fn draw_map_bsp<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, man
 
         canvas.thick_line(p1x, p1y, p2x, p2y,3, Color::BLUE).unwrap();
     }
+    manager.mut_meta().insert("don't_draw_bsp".to_string(), true);
 }
 
 fn get_bounding_box(bbox: &wad::BoundingBox, map: &wad::Map, bounds: (i16, i16), boarder: i16) -> ((i16, i16), (i16, i16)) {
     (
-        map_utils::scale_xy(bbox.x, bbox.y,  map.map_bounds(), bounds, 30),
-        map_utils::scale_xy(bbox.w, bbox.h,  map.map_bounds(), bounds, 30)
+        map_utils::scale_xy(bbox.x, bbox.y,  map.map_bounds(), bounds, boarder),
+        map_utils::scale_xy(bbox.w, bbox.h,  map.map_bounds(), bounds, boarder)
     )
 }
 
-fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    set_meta("don't_draw_vertexes", 0, false);
-    if meta()["don't_draw_vertexes"] >= 1 { return };
+fn  draw_map_vertexes<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+    if manager.meta().get("don't_draw_vertexes").is_some_and(|v| *v ) { return };
     
     let map = &context.current_map;
 
@@ -206,54 +203,51 @@ fn  draw_map_vertexes<M: Manager>(canvas: &mut Canvas<Window>,  context: &Contex
         canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
         canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
     }
-
-    set_meta("don't_draw_vertexes", 1, true);
-
+    manager.mut_meta().insert("don't_draw_vertexes".to_string(), true);
 }
 
-fn draw_map_lines<M: Manager>(canvas: &mut Canvas<Window>,  context: &Context, manager: &M ) {
-    set_meta("don't_draw_lines", 0, false);
-    if meta()["don't_draw_lines"] >= 1 { return };
+fn draw_map_lines<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+    if manager.meta().get("don't_draw_lines").is_some_and(|v| *v ) { return };
 
     let map = &context.current_map;
     let player = &context.player;
     //let bsp = &context.bsp;
 
-    let bounds = (manager.screen_width(), manager.screen_height());
+    let max_bounds = (manager.screen_width(), manager.screen_height());
     let boarder: i16 = 30;
 
     let points = map_utils::scale_map_points(
         map.map_points(),
         map.map_bounds(),
-        (manager.screen_width(), manager.screen_height()),
-        30
+        max_bounds,
+        boarder
     );
 
 
     let nodes: Vec<wad::Node> = map.traverse_bsp((player.x, player.y)).collect();
 
-    let segs_by_sub_sector = map.segs_to_draw(&nodes, (player.x, player.y));
+    let segs_by_sub_sector = map.segs_from_nodes(&nodes, (player.x, player.y));
 
     for segs_to_draw in segs_by_sub_sector {
         for segment in segs_to_draw.segments {
-            draw2d_utils::draw_seg(&canvas, &segment, segs_to_draw.sub_sector_id, &points);
+            draw2d_utils::draw_seg(&canvas, &segment, segs_to_draw.sub_sector_id, &points, &mut manager.mut_colours());
         }
     }
-    set_meta("don't_draw_lines", 1, true);
+    manager.mut_meta().insert("don't_draw_lines".to_string(), 1);
 }
 
 mod draw2d_utils {
     use super::*;
     use rand::{self, Rng};
 
-    pub fn draw_seg(canvas: &Canvas<Window>, seg: &wad::Segment, subsector_id: i16, vertexes: &wad::Points) {
+    pub fn draw_seg(canvas: &Canvas<Window>, seg: &wad::Segment, subsector_id: u16, vertexes: &wad::Points, colours: &mut MutColours) {
         let p1 = vertexes[seg.start_vertext_id as usize];
         let p2 = vertexes[seg.end_verext_id as usize];
-        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, rand_colour(subsector_id)).unwrap();
+        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, rand_colour(colours, subsector_id)).unwrap();
     }
 
-    pub fn rand_colour(subsector_id: i16) -> sdl2::pixels::Color {
-        *colors().entry(subsector_id).or_insert_with(|| { 
+    pub fn rand_colour(colours: &mut MutColours, subsector_id: u16) -> sdl2::pixels::Color {
+        *colours.entry(subsector_id).or_insert_with(|| { 
             let seed: Vec<u8> = format!("{:032}", subsector_id).chars().into_iter().map(|c| c as u8).collect();
             let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(seed[0..32].try_into().unwrap());
             let mut rand_color = || rng.gen_range::<u8, core::ops::RangeInclusive<u8>>(100..=255);
