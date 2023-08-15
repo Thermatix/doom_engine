@@ -9,9 +9,8 @@ use sdl2::gfx::primitives::DrawRenderer;
 
 pub static mut SEG_COLOURS: OnceLock<HashMap<u16, Color>> = OnceLock::new();
 
-pub type FlagsValue = bool;
-pub type Flags<'a> = Ref<'a, HashMap<String, FlagsValue>>;
-pub type MutFlags<'a> = RefMut<'a, HashMap<String, FlagsValue>>;
+pub type Flags<'a> = Ref<'a, HashMap<String, bool>>;
+pub type MutFlags<'a> = RefMut<'a, HashMap<String, bool>>;
 pub type Colours<'a> = Ref<'a, HashMap<u16, Color>>;
 pub type MutColours<'a> = RefMut<'a, HashMap<u16, Color>>;
 pub type Layers<Draw> = Vec<Layer<Draw>>;
@@ -54,7 +53,7 @@ pub struct Draw2D  {
     screen_width: i16,
     screen_height: i16,
     layers: Layers<Self>,
-    meta: RefCell<HashMap<String, FlagsValue>>,
+    meta: RefCell<HashMap<String, bool>>,
     colours: RefCell<HashMap<u16, Color>>,
 }
 
@@ -233,7 +232,7 @@ fn draw_map_lines<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut
             draw2d_utils::draw_seg(&canvas, &segment, segs_to_draw.sub_sector_id, &points, &mut manager.mut_colours());
         }
     }
-    manager.mut_meta().insert("don't_draw_lines".to_string(), 1);
+    manager.mut_meta().insert("don't_draw_lines".to_string(), true);
 }
 
 mod draw2d_utils {

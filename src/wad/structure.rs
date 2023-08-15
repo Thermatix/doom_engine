@@ -132,10 +132,10 @@ impl Map {
             output
         })
     }
-
     
     pub fn segs_from_nodes(&self, nodes: &Vec<Node>, player_pos: (i16, i16)) -> Vec<SegsToDraw> {
         nodes.iter().rev().fold( (None, Vec::new()), |(previous_node, segments): (Option<&Node>, Vec<SegsToDraw>), node: &Node| {
+            println!("{node:?}");
             (
                 Some(node),
                 self.recurse_node_from_list(segments, node, previous_node, player_pos)
