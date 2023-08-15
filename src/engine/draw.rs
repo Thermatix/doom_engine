@@ -1,13 +1,19 @@
 use std::cell::{RefCell, Ref, RefMut};
 use std::collections::HashMap;
 use std::hash::Hash;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock, RwLockWriteGuard};
+
 
 use super::*;
 //use super::bsp::NodeType;
 use sdl2::gfx::primitives::DrawRenderer;
 
-pub static mut SEG_COLOURS: OnceLock<HashMap<u16, Color>> = OnceLock::new();
+pub static NUMBERS: OnceLock<RwLock<HashMap<String, usize>>> = OnceLock::new();
+
+fn numbers() -> RwLockWriteGuard<'static, std::collections::HashMap<std::string::String, usize>> {
+    NUMBERS.get_or_init(|| RwLock::new(HashMap::new())).write().unwrap()
+}
+
 
 pub type Flags<'a> = Ref<'a, HashMap<String, bool>>;
 pub type MutFlags<'a> = RefMut<'a, HashMap<String, bool>>;
@@ -207,6 +213,11 @@ fn  draw_map_vertexes<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c
 
 fn draw_map_lines<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
     if manager.meta().get("don't_draw_lines").is_some_and(|v| *v ) { return };
+    let mut numbers = numbers();
+    
+    let mut sub_sector_id = *numbers.entry("sub_sector_id".to_string()).or_insert(0);
+    let mut segment_id = *numbers.entry("segment_id".to_string()).or_insert(0);
+    
 
     let map = &context.current_map;
     let player = &context.player;
@@ -225,14 +236,30 @@ fn draw_map_lines<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut
 
     let nodes: Vec<wad::Node> = map.traverse_bsp((player.x, player.y)).collect();
 
-    let segs_by_sub_sector = map.segs_from_nodes(&nodes, (player.x, player.y));
+    let segs_by_sub_sector_id = map.segs_from_nodes(&nodes, (player.x, player.y));
 
-    for segs_to_draw in segs_by_sub_sector {
-        for segment in segs_to_draw.segments {
-            draw2d_utils::draw_seg(&canvas, &segment, segs_to_draw.sub_sector_id, &points, &mut manager.mut_colours());
+
+    let segs_to_draw = &segs_by_sub_sector_id[sub_sector_id];
+
+    
+    draw2d_utils::draw_seg(&canvas, &segs_to_draw.segments[segment_id], segs_to_draw.sub_sector_id, &points, &mut manager.mut_colours());
+
+
+    segment_id += 1;
+
+    if segment_id == segs_to_draw.segments.len() {
+        sub_sector_id += 1;
+        if sub_sector_id == segs_by_sub_sector_id.len() {
+            manager.mut_meta().insert("don't_draw_lines".to_string(), true);
+        } else {
+            numbers.insert("segment_id".to_string(), 0);
+            numbers.insert("sub_sector_id".to_string(), sub_sector_id);
         }
+        
+    } else {
+        numbers.insert("segment_id".to_string(), segment_id);
     }
-    manager.mut_meta().insert("don't_draw_lines".to_string(), true);
+
 }
 
 mod draw2d_utils {
