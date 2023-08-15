@@ -6,15 +6,6 @@ mod errors;
 pub mod macros;
 mod wad;
 mod engine;
-
-use std::collections::HashMap;
-
-use std::time::Duration;
-
-
-use macros::*;
-
-
 use engine::GameLoop;
 
 fn main() -> errors::CliResult<'static> {
@@ -36,9 +27,3 @@ fn main() -> errors::CliResult<'static> {
     engine.main_loop();
     Ok(())
 }
-
-
-// fn get_map_bounds(vertex_lumps: &LumpData) -> (i32, i32, i32 ,i32) {
-
-
-// }

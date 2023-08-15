@@ -41,3 +41,12 @@ macro_rules! try_outer_to_inner {
         }
     };
 }
+
+#[macro_export]
+macro_rules! drawer_2d {
+    ($fn_name: tt) => {
+        fn $fn_name <'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+
+        }
+    };
+}

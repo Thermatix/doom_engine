@@ -5,7 +5,7 @@ use std::sync::{OnceLock, RwLock, RwLockWriteGuard};
 
 
 use super::*;
-//use super::bsp::NodeType;
+
 use sdl2::gfx::primitives::DrawRenderer;
 
 pub static NUMBERS: OnceLock<RwLock<HashMap<String, usize>>> = OnceLock::new();
@@ -19,10 +19,9 @@ pub type Flags<'a> = Ref<'a, HashMap<String, bool>>;
 pub type MutFlags<'a> = RefMut<'a, HashMap<String, bool>>;
 pub type Colours<'a> = Ref<'a, HashMap<u16, Color>>;
 pub type MutColours<'a> = RefMut<'a, HashMap<u16, Color>>;
-pub type Layers<Draw> = Vec<Layer<Draw>>;
+pub type Layers<Draw> = HashMap<String,Layer<Draw>>;
 
 pub struct Layer<M> where M: Manager {
-    pub name: String,
     pub draw_function: Box<dyn for<'m, 'c> Fn(&'c mut Canvas<Window>, &'c Context, &'m M)>,
 }
 
@@ -59,6 +58,7 @@ pub struct Draw2D  {
     screen_width: i16,
     screen_height: i16,
     layers: Layers<Self>,
+    enabled_layers: Vec<String>,
     meta: RefCell<HashMap<String, bool>>,
     colours: RefCell<HashMap<u16, Color>>,
 }
@@ -74,10 +74,9 @@ impl Manager for Draw2D {
     fn draw_layers(&self, canvas: &mut Canvas<Window>, context: &Context) {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         //canvas.clear();
-        for layer in self.layers.iter() {
-            layer.draw(canvas, context, self);
-        };
-        
+        for layer in self.enabled_layers.iter() {
+            self.layers[layer].draw(canvas, context, self);
+        }
     }
 }
 
@@ -108,37 +107,49 @@ impl Draw2D {
             screen_width,
             screen_height,
             layers,
+            enabled_layers: Vec::new(),
             meta: RefCell::new(HashMap::new()),
             colours: RefCell::new(HashMap::new()),
         };
 
-        draw_2d.layers.push(
+        draw_2d.layers.insert(
+            "map-lines_bsp".to_string(),
             Layer {
-                name: "map-lines".to_string(),
-                draw_function: Box::new(draw_map_lines),
+                draw_function: Box::new(draw_map_lines_bsp),
             }
         );
 
-        draw_2d.layers.push(
+        draw_2d.layers.insert(
+            "map-lines_def".to_string(),
             Layer {
-                name: "map-vertexes".to_string(),
+                draw_function: Box::new(draw_map_line_defs),
+            }
+        );
+
+        draw_2d.layers.insert(
+            "map-vertexes".to_string(),
+            Layer {
                 draw_function: Box::new(draw_map_vertexes),
             }
         );
 
-        draw_2d.layers.push(
+        draw_2d.layers.insert(
+            "map-bsp".to_string(),
             Layer {
-                name: "map-bsp".to_string(),
                 draw_function: Box::new(draw_map_bsp),
             }
         );
 
-        draw_2d.layers.push(
+        draw_2d.layers.insert(
+            "player".to_string(),
             Layer { 
-                name: "player".to_string(),
                 draw_function: Box::new(draw_player),
             }
         );
+
+        draw_2d.enabled_layers.push("map-lines_bsp".to_string());
+        draw_2d.enabled_layers.push("map-vertexes".to_string());
+        draw_2d.enabled_layers.push("player".to_string());
 
         draw_2d
     }
@@ -211,7 +222,26 @@ fn  draw_map_vertexes<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c
     manager.mut_meta().insert("don't_draw_vertexes".to_string(), true);
 }
 
-fn draw_map_lines<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+fn draw_map_line_defs<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
+    if manager.meta().get("don't_draw_vertexes").is_some_and(|v| *v ) { return };
+    
+    let map = &context.current_map;
+
+    let points = map_utils::scale_map_points(
+        map.map_points(),
+        map.map_bounds(),
+        (manager.screen_width(), manager.screen_height()),
+        30
+    );
+
+    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)) {
+        draw2d_utils::draw_line(canvas, p1, p2, Color::GREY);
+    }
+    manager.mut_meta().insert("don't_draw_vertexes".to_string(), true);
+}
+
+
+fn draw_map_lines_bsp<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
     if manager.meta().get("don't_draw_lines").is_some_and(|v| *v ) { return };
     let mut numbers = numbers();
     
@@ -269,13 +299,17 @@ mod draw2d_utils {
     pub fn draw_seg(canvas: &Canvas<Window>, seg: &wad::Segment, subsector_id: u16, vertexes: &wad::Points, colours: &mut MutColours) {
         let p1 = vertexes[seg.start_vertext_id as usize];
         let p2 = vertexes[seg.end_verext_id as usize];
-        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, rand_colour(colours, subsector_id)).unwrap();
+        draw2d_utils::draw_line(canvas, &p1, &p2, rand_colour(colours, subsector_id))
+    }
+
+    pub fn draw_line(canvas: &Canvas<Window>, p1: &wad::Point, p2: &wad::Point, colour: Color) {
+        canvas.thick_line(p1.0, p1.1, p2.0, p2.1,3, colour).unwrap();
     }
 
     pub fn rand_colour(colours: &mut MutColours, subsector_id: u16) -> sdl2::pixels::Color {
         *colours.entry(subsector_id).or_insert_with(|| { 
             let seed: Vec<u8> = format!("{:032}", subsector_id).chars().into_iter().map(|c| c as u8).collect();
-            let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(seed[0..32].try_into().unwrap());
+            let mut rng: rand::rngs::StdRng = rand::SeedableRng::from_seed(seed.try_into().unwrap());
             let mut rand_color = || rng.gen_range::<u8, core::ops::RangeInclusive<u8>>(100..=255);
             Color { r: rand_color(), g: rand_color(), b: rand_color(), a:255 }
         })
