@@ -1,3 +1,5 @@
 /target
 *.wad
 output.txt
+*CodeRunner*
+.vscode

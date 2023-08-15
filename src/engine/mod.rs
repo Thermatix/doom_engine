@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 
-//mod bsp;
 mod player;
 mod draw;
 mod errors;
