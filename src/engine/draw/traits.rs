@@ -1,8 +1,23 @@
 use super::*;
 
 pub trait Drawable {
-    type Manager;
+    type Manager: Manager;
+
     fn draw<'c, 'm>(&'m self, canvas: &'c mut Canvas<Window>, context: &'c Context, manager: &'m Self::Manager); 
+    
+    fn depends_on(&self) -> Option<Vec<String>> {
+        None
+    }
+
+    fn start_drawing<'c, 'm>(&'m self, canvas: &'c mut Canvas<Window>, context: &'c Context, manager: &'m Self::Manager)  {
+        if let Some(layer_names) = self.depends_on() {
+            let layers= manager.layers();
+            for l_name in layer_names.iter() {
+                layers[l_name].draw(canvas, &context, manager);
+            }
+        }
+        self.draw(canvas, &context, manager);
+    }
 }
 
 /// The basic functionality a Layer manager needs
@@ -10,7 +25,10 @@ pub trait Manager {
     fn screen_width(&self) -> i16;
     fn screen_height(&self) -> i16;
     fn draw_layers(&self, canvas: &mut Canvas<Window>, context: &Context);
-
+    
+    type Drawable: Drawable;
+    
+    fn layers(&self) -> &HashMap<String, Self::Drawable>;
 }
 
 /// A store for flags between iterations

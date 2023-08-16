@@ -1,3 +1,4 @@
+use sdl2::gfx::primitives::DrawRenderer;
 use super::*;
 
 /// Draw the players location
