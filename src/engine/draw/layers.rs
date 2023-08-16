@@ -1,4 +1,5 @@
-use sdl2::gfx::primitives::DrawRenderer;
+
+
 use super::*;
 
 /// Draw the players location
@@ -51,9 +52,16 @@ pub fn get_bounding_box(bbox: &wad::BoundingBox, map: &wad::Map, bounds: (i16, i
 }
 
 pub fn  draw_map_vertexes<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
-    if manager.meta().get("don't_draw_vertexes").is_some_and(|v| *v ) { return };
+    if manager.meta().get("don't_draw_lines").is_some_and(|v| *v ) { return };
+    let numbers = helpers::numbers();
     
-    let map = &context.current_map;
+    let segment_id = *numbers.get("segment_id").unwrap();
+
+    let map = &context.current_map;   
+
+    let seg = &map.segments[segment_id];
+
+ 
 
     let points = helpers::scale_map_points(
         map.map_points(),
@@ -62,11 +70,13 @@ pub fn  draw_map_vertexes<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas:
         30
     );
 
-    for (p1, p2) in map.line_defs_to_vertexes(Some(&points)) {
-        canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
-        canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
-    }
-    manager.mut_meta().insert("don't_draw_vertexes".to_string(), true);
+
+    let p1 = points[seg.start_vertext_id as usize];
+    let p2 = points[seg.end_verext_id as usize];
+    
+    canvas.filled_circle(p1.0, p1.1 , 2, Color::YELLOW).unwrap();
+    canvas.filled_circle(p2.0, p2.1 , 2, Color::YELLOW).unwrap();
+
 }
 
 pub fn draw_map_line_defs<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas: &'c mut Canvas<Window>,  context: &'c Context, manager: &'m M ) {
@@ -98,8 +108,7 @@ pub fn draw_map_lines_bsp<'m, 'c, M: Manager + FlagsData + ColoursStore>(canvas:
 
     let map = &context.current_map;
     let player = &context.player;
-    //let bsp = &context.bsp;
-
+    
     let max_bounds = (manager.screen_width(), manager.screen_height());
     let boarder: i16 = 30;
 

@@ -20,7 +20,6 @@ use sdl2::{
     VideoSubsystem,
     render::Canvas,
     video::Window,
-    pixels::Color,
     event::Event,
     keyboard::Keycode,
 };

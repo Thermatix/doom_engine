@@ -1,7 +1,17 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::collections::HashMap;
 
-use super::*;
+use sdl2::{
+    gfx::primitives::DrawRenderer,
+    render::Canvas,
+    video::Window,
+    pixels::Color,
+};
+
+use super::{
+    Context,
+    wad,
+};
 
 mod helpers;
 mod layers;
@@ -17,14 +27,29 @@ pub type Layers<Draw> = HashMap<String, Layer<Draw>>;
 
 /// A Drawing layer
 // TODO: Provide a way to allow for layers to depend on other layers (and thus can have values shared between them)
-pub struct Layer<M> where M: Manager {
+pub struct Layer<M>
+where
+    M: Manager,
+{
     pub draw_function: Box<dyn for<'m, 'c> Fn(&'c mut Canvas<Window>, &'c Context, &'m M)>,
+    pub depends_on: Vec<String>,
 }
 
-impl<M> Drawable for Layer<M> where M: Manager {
-    type Manager = M;
-    fn draw<'c, 'm>(&'m self, canvas: &'c mut Canvas<Window>, context: &'c Context, manager: &'m Self::Manager) {
+impl<M> Drawable<M> for Layer<M>
+where
+    M: Manager,
+{
+    fn draw<'c, 'm>(
+        &'m self,
+        canvas: &'c mut Canvas<Window>,
+        context: &'c Context,
+        manager: &'m M,
+    ) {
         (&self.draw_function.as_ref())(canvas, context, manager);
+    }
+
+    fn depends_on(&self) -> Option<&Vec<String>> {
+        Some(&self.depends_on)
     }
 }
 
@@ -49,7 +74,7 @@ impl Manager for Draw2D {
     fn draw_layers(&self, canvas: &mut Canvas<Window>, context: &Context) {
         canvas.set_draw_color(Color::RGB(0, 0, 0));
         for layer in self.enabled_layers.iter() {
-            self.layers[layer].draw(canvas, context, self);
+            self.layers[layer].start_drawing(canvas, context, self);
         }
     }
 
@@ -96,6 +121,7 @@ impl Draw2D {
             "map-lines_bsp".to_string(),
             Layer {
                 draw_function: Box::new(layers::draw_map_lines_bsp),
+                depends_on: Vec::new(),
             },
         );
 
@@ -103,6 +129,7 @@ impl Draw2D {
             "map-lines_def".to_string(),
             Layer {
                 draw_function: Box::new(layers::draw_map_line_defs),
+                depends_on: Vec::new(),
             },
         );
 
@@ -110,6 +137,7 @@ impl Draw2D {
             "map-vertexes".to_string(),
             Layer {
                 draw_function: Box::new(layers::draw_map_vertexes),
+                depends_on: Vec::new(),
             },
         );
 
@@ -117,6 +145,7 @@ impl Draw2D {
             "map-bsp".to_string(),
             Layer {
                 draw_function: Box::new(layers::draw_map_bsp),
+                depends_on: Vec::new(),
             },
         );
 
@@ -124,11 +153,12 @@ impl Draw2D {
             "player".to_string(),
             Layer {
                 draw_function: Box::new(layers::draw_player),
+                depends_on: vec!["map-lines_bsp".to_string(), "map-vertexes".to_string()],
             },
         );
 
-        draw_2d.enabled_layers.push("map-lines_bsp".to_string());
-        draw_2d.enabled_layers.push("map-vertexes".to_string());
+        // draw_2d.enabled_layers.push("map-lines_bsp".to_string());
+        //draw_2d.enabled_layers.push("map-vertexes".to_string());
         draw_2d.enabled_layers.push("player".to_string());
 
         draw_2d
